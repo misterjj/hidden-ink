@@ -1,0 +1,9 @@
+{
+  "name": "Fiches de monstres et notes",
+  "version": "1.1.0",
+  "manifest_version": 1,
+  "author": "Jonathan Jorand",
+  "description": "Fiches de monstres AideDD ou manuelles sur les tokens, et notes cachées sur la carte, réservées au MJ.",
+  "icon": "/icon.svg",
+  "background_url": "/background.html"
+}
