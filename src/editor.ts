@@ -1,7 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { FicheError, loadFromAidedd } from "./data";
 import { normalizeFicheUrl } from "../shared/aidedd";
-import { escapeHtml } from "./manual";
+import { escapeHtml, statblockToManual } from "./manual";
 import "./style.css";
 import {
   CHANNEL,
@@ -9,13 +9,14 @@ import {
   METADATA_KEY,
   type ManualFiche,
   type Message,
+  type Statblock,
   type TokenFiche,
 } from "./types";
 
 // Les métadonnées sont synchronisées dans la scène : on évite d'y mettre un roman.
 const MAX_MANUAL_BYTES = 12 * 1024;
 const ABILITIES = ["FOR", "DEX", "CON", "INT", "SAG", "CHA"];
-const PANE_HEIGHTS: Record<string, number> = { choice: 270, link: 270, manual: 760 };
+const PANE_HEIGHTS: Record<string, number> = { choice: 270, link: 310, manual: 760 };
 
 const params = new URLSearchParams(location.search);
 const itemId = params.get("item") ?? "";
@@ -84,9 +85,10 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: string)
         <p class="error" id="link-error" hidden></p>
         <div class="row">
           <button type="submit" class="primary" id="link-submit">Attacher au token</button>
+          <button type="button" id="adapt">Adapter</button>
           <button type="button" id="to-manual" hidden>Saisir à la main</button>
         </div>
-        <p class="hint">Colle le lien : la fiche se charge toute seule.</p>
+        <p class="hint">Colle le lien : la fiche se charge toute seule. <b>Adapter</b> la recopie dans la saisie à la main pour la modifier, sans les liens vers les sorts.</p>
       </form>
 
       <form id="manual-form" class="pane" data-pane="manual">
@@ -151,26 +153,40 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: string)
   const submit = app.querySelector<HTMLButtonElement>("#link-submit")!;
   const toManual = app.querySelector<HTMLButtonElement>("#to-manual")!;
   toManual.onclick = () => showTab("manual");
+  const adapt = app.querySelector<HTMLButtonElement>("#adapt")!;
 
-  const attach = async () => {
+  const withLoadedLink = async (
+    button: HTMLButtonElement,
+    fallbackError: string,
+    action: (statblock: Statblock) => Promise<void> | void,
+  ) => {
+    const label = button.textContent;
     linkError.hidden = true;
     toManual.hidden = true;
-    submit.disabled = true;
-    submit.textContent = "Chargement…";
+    submit.disabled = adapt.disabled = true;
+    button.textContent = "Chargement…";
     try {
-      await loadFromAidedd(linkInput.value);
-      await save({ kind: "link", url: normalizeFicheUrl(linkInput.value)! });
-      await finish(true);
+      await action(await loadFromAidedd(linkInput.value));
     } catch (error) {
-      linkError.textContent =
-        error instanceof FicheError ? error.message : "Impossible d'attacher cette fiche.";
+      linkError.textContent = error instanceof FicheError ? error.message : fallbackError;
       linkError.hidden = false;
       toManual.hidden = false;
     } finally {
-      submit.disabled = false;
-      submit.textContent = "Attacher au token";
+      submit.disabled = adapt.disabled = false;
+      button.textContent = label;
     }
   };
+  const attach = () =>
+    withLoadedLink(submit, "Impossible d'attacher cette fiche.", async () => {
+      await save({ kind: "link", url: normalizeFicheUrl(linkInput.value)! });
+      await finish(true);
+    });
+  // Rien n'est enregistré ici : le lien reste en place tant que le formulaire n'est pas validé.
+  adapt.onclick = () =>
+    withLoadedLink(adapt, "Impossible de charger cette fiche.", (statblock) => {
+      fillManualForm(statblockToManual(statblock));
+      showTab("manual");
+    });
   linkForm.onsubmit = (event) => {
     event.preventDefault();
     attach();
@@ -181,6 +197,16 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: string)
       if (normalizeFicheUrl(linkInput.value)) attach();
     });
   });
+
+  const fillManualForm = (fiche: ManualFiche) => {
+    const set = (name: string, value: string) => {
+      (manualForm.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement).value = value;
+    };
+    for (const name of ["name", "type", "ac", "hp", "speed", "props", "body"] as const) {
+      set(name, fiche[name]);
+    }
+    ABILITIES.forEach((_, index) => set(`ability${index}`, fiche.abilities[index] ?? ""));
+  };
 
   const manualForm = app.querySelector<HTMLFormElement>("#manual-form")!;
   manualForm.oninput = () => {

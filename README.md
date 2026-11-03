@@ -17,6 +17,10 @@ Dans la fenêtre :
 - le bouton `▢` la remet en grand ;
 - le crayon permet de modifier la fiche, de changer de méthode ou de retirer la fiche.
 
+Pour ajuster un monstre AideDD (plus de PV, une attaque en moins…), clique sur le crayon puis sur
+**Adapter** : la fiche est recopiée dans la saisie à la main, et le token garde son lien tant que tu
+n'enregistres pas. La copie n'a plus de lien vers AideDD ni vers les sorts, et reste limitée à 12 ko.
+
 Liens acceptés :
 
 - `https://www.aidedd.org/dnd/monstres.php?vf=tertre-errant`

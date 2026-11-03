@@ -15,7 +15,7 @@ import {
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { handleFicheRequest, normalizeFicheUrl } from "../shared/aidedd";
-import { manualToStatblock, parseManualBody } from "../src/manual";
+import { manualToStatblock, parseManualBody, statblockToManual } from "../src/manual";
 import { markdownPreview, renderMarkdown } from "../src/markdown";
 import { parseStatblock } from "../src/parser";
 import { statblockParts } from "../src/sheet";
@@ -225,6 +225,71 @@ describe("saisie à la main", () => {
     expect(s.abilities).toEqual([]);
     expect(s.sections).toEqual([]);
   });
+});
+
+describe("adapter une fiche AideDD", () => {
+  const words = (html: string) => {
+    const host = document.createElement("div");
+    host.innerHTML = html.replace(/<(br|\/p|\/li|\/td|\/th|\/tr)\b[^>]*>/g, " $&");
+    return (host.textContent ?? "").replace(/\s+/g, " ").trim();
+  };
+
+  it("répartit le tertre errant dans les champs de la saisie", () => {
+    const m = statblockToManual(parse("tertre-errant"));
+    expect(m.name).toBe("Tertre errant");
+    expect(m.type).toBe("Plante de taille G, sans alignement");
+    expect(m.ac).toBe("15 (armure naturelle)");
+    expect(m.hp).toBe("136 (16d10 + 48)");
+    expect(m.speed).toBe("6 m, nage 6 m");
+    expect(m.abilities).toEqual(["18", "8", "16", "5", "10", "5"]);
+    expect(m.props).toContain("Résistances aux dégâts : froid, feu");
+    expect(m.props).not.toMatch(/Classe d'armure|Points de vie|Vitesse/);
+    expect(m.props).toContain("Source : Monster Manual (SRD)");
+    expect(m.body).toContain("# Actions");
+  });
+
+  it("reconnaît les libellés anglais et ceux de 2024", () => {
+    const fr = statblockToManual(parse("mimique-2024-fr"));
+    expect([fr.ac, fr.hp]).toEqual(["12", "58 (9d8 + 18)"]);
+    expect(fr.abilities[0]).toBe("17");
+    const en = statblockToManual(parse("goblin-warrior-2024"));
+    expect(en.hp).toBe("10 (3d6)");
+    expect(en.props).toContain("Initiative : +2 (12)");
+    expect(en.body).toContain("# Description");
+    expect(en.body).toContain("Goblins are Feywild");
+  });
+
+  it("garde un jet de sauvegarde différent du modificateur", () => {
+    const m = statblockToManual({
+      name: "X", type: "", props: [], sections: [], source: "", extrasHtml: "",
+      abilities: [
+        { label: "For", score: "17", mod: "+3", save: "+3" },
+        { label: "Dex", score: "12", mod: "+1", save: "+5" },
+      ],
+    });
+    expect(m.props).toBe("Jets de sauvegarde : Dex +5");
+  });
+
+  it.each(["tertre-errant", "liche", "dragon-rouge-adulte", "goblin-warrior-2024", "mimique-2024-fr"])(
+    "ne perd aucun texte de %s et tient dans la limite",
+    (name) => {
+      const source = parse(name);
+      const manual = statblockToManual(source);
+      const copy = manualToStatblock(manual);
+      expect(new TextEncoder().encode(JSON.stringify(manual)).length).toBeLessThan(12 * 1024);
+      expect(copy.name).toBe(source.name);
+      expect(copy.abilities.map((a) => a.mod)).toEqual(source.abilities.map((a) => a.mod));
+      const text = words(
+        copy.props.map((p) => `<p>${p.label} ${p.valueHtml}</p>`).join("") +
+          copy.sections.flatMap((s) => [s.title, ...s.entries].map((e) => `<p>${e}</p>`)).join(""),
+      );
+      for (const section of source.sections) {
+        if (section.title) expect(text).toContain(section.title);
+        for (const entry of section.entries) expect(text).toContain(words(entry));
+      }
+      for (const prop of source.props) expect(text).toContain(words(prop.valueHtml));
+    },
+  );
 });
 
 describe("pictos de la fenêtre réduite", () => {
