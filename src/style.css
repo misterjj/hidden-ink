@@ -137,8 +137,29 @@ button.back {
 .note-bar img { flex: none; }
 .note-read { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 10px 14px; }
 .note-read h1 { margin: 0 0 6px; font: 600 16px/1.25 Georgia, serif; color: var(--red); overflow-wrap: anywhere; }
-.note-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-text { overflow-wrap: anywhere; }
 .note-text:empty { display: none; }
+.note-text > :first-child { margin-top: 0; }
+.note-text > :last-child { margin-bottom: 0; }
+.note-text p, .note-text ul, .note-text ol, .note-text blockquote, .note-text pre, .note-text table { margin: 0 0 8px; }
+.note-text ul, .note-text ol { padding-left: 22px; }
+.note-text ul ul, .note-text ul ol, .note-text ol ul, .note-text ol ol { margin-bottom: 0; }
+.note-text h1, .note-text h2, .note-text h3, .note-text h4, .note-text h5, .note-text h6 {
+  margin: 12px 0 4px; font: 600 14px/1.25 Georgia, serif; color: var(--red);
+}
+.note-text h1 { font-size: 16px; }
+.note-text h2 { font-size: 15px; }
+.note-text a { color: var(--red); }
+.note-text hr { border: 0; border-top: 1px solid var(--paper-line); margin: 10px 0; }
+.note-text blockquote { padding-left: 10px; border-left: 3px solid var(--paper-line); color: #6d5d4b; }
+.note-text code { padding: 1px 4px; border-radius: 3px; background: rgb(0 0 0 / 0.07); font-size: 13px; }
+.note-text pre { padding: 8px; overflow-x: auto; border-radius: 4px; background: rgb(0 0 0 / 0.07); }
+.note-text pre code { padding: 0; background: none; }
+.note-text img { display: block; max-width: 100%; height: auto; }
+.note-text input { width: auto; margin: 0 4px 0 0; }
+.note-text li:has(> input) { list-style: none; margin-left: -18px; }
+.note-text table { display: block; overflow-x: auto; border-collapse: collapse; }
+.note-text td, .note-text th { border: 1px solid var(--paper-line); padding: 2px 6px; }
 .note-actions {
   display: flex; flex: none; gap: 8px; margin-top: auto; padding: 8px 14px;
   border-top: 1px solid var(--paper-line);

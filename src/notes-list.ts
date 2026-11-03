@@ -1,5 +1,6 @@
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import { escapeHtml } from "./manual";
+import { markdownPreview } from "./markdown";
 import {
   LIST_POPOVER_ID,
   NOTE_CHANNEL,
@@ -34,7 +35,7 @@ function renderRows() {
         <img src="/notes/${note.type}.svg" alt="${escapeHtml(NOTE_TYPES[note.type])}" width="24" height="24" />
         <span>
           <strong>${escapeHtml(note.title)}</strong>
-          <small>${escapeHtml(note.text.split("\n", 1)[0])}</small>
+          <small>${escapeHtml(markdownPreview(note.text))}</small>
         </span>
       </button>`,
         )

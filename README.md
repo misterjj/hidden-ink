@@ -34,6 +34,10 @@ Pour les pièges, les objets cachés et les mécaniques spéciales.
 2. Choisis un type : piège, objet caché, mécanique ou note libre.
 3. Clique sur la carte, écris la note, puis **Enregistrer** (ou `Ctrl`/`Cmd` + `Entrée`).
 
+Le texte accepte le markdown : `**gras**`, `*italique*`, `~~barré~~`, `# titre`, listes, cases `- [ ]`,
+citations, tableaux, `[liens](https://…)` et `![images](https://…)`. Une image doit être en ligne : la
+note ne garde que son adresse. Le HTML écrit dans une note reste affiché comme du texte.
+
 L'outil reste actif pour poser la note suivante. Un picto se déplace, se copie et
 se supprime comme n'importe quel objet Owlbear.
 

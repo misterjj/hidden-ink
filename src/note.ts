@@ -1,5 +1,6 @@
 import OBR, { buildImage, isImage } from "@owlbear-rodeo/sdk";
 import { escapeHtml } from "./manual";
+import { renderMarkdown } from "./markdown";
 import {
   NOTE_CHANNEL,
   NOTE_IMAGE_DPI,
@@ -91,7 +92,7 @@ function renderRead(note: MapNote) {
       ${bar(note.type)}
       <div class="note-read" data-fit>
         <h1>${escapeHtml(note.title)}</h1>
-        <p class="note-text">${escapeHtml(note.text)}</p>
+        <div class="note-text">${renderMarkdown(note.text)}</div>
       </div>
       <footer class="note-actions">
         <button type="button" id="done">${note.done ? "Remettre à faire" : "Marquer comme fait"}</button>
@@ -110,6 +111,10 @@ function renderRead(note: MapNote) {
     await updateNote(next);
     renderRead(next);
   };
+  // Une image ne prend sa hauteur qu'une fois chargée.
+  app.querySelectorAll<HTMLImageElement>(".note-text img").forEach((image) => {
+    image.onload = fitHeight;
+  });
   fitHeight();
 }
 
@@ -129,7 +134,8 @@ function renderEdit(type: NoteType, current?: MapNote, position?: { x: number; y
         <label>Titre
           <input name="title" autocomplete="off" value="${escapeHtml(current?.title ?? "")}" />
         </label>
-        <label class="note-grow">Texte
+        <label class="note-grow">
+          <span>Texte <small>(markdown : **gras**, *italique*, # titre, - liste…)</small></span>
           <textarea name="text">${escapeHtml(current?.text ?? "")}</textarea>
         </label>
         <p class="error" id="error" hidden></p>

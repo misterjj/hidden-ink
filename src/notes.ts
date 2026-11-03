@@ -34,7 +34,7 @@ export const NOTE_TYPES = {
 export type NoteType = keyof typeof NOTE_TYPES;
 export const NOTE_TYPE_IDS = Object.keys(NOTE_TYPES) as NoteType[];
 
-/** Ce qui est stocké sur le picto. Du texte brut, jamais interprété comme du HTML. */
+/** Ce qui est stocké sur le picto. Le texte est du markdown, affiché par `renderMarkdown`. */
 export interface MapNote {
   type: NoteType;
   title: string;

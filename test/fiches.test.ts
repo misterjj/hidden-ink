@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { handleFicheRequest, normalizeFicheUrl } from "../shared/aidedd";
 import { manualToStatblock, parseManualBody } from "../src/manual";
+import { markdownPreview, renderMarkdown } from "../src/markdown";
 import { parseStatblock } from "../src/parser";
 import { statblockParts } from "../src/sheet";
 
@@ -277,6 +278,47 @@ describe("pictos de la fenêtre réduite", () => {
       "Résistances et immunités",
       "Réactions",
     ]);
+  });
+});
+
+describe("markdown des notes", () => {
+  it("met en forme le texte", () => {
+    const html = renderMarkdown("# Piège\n\n**Fosse** et *pieux*\n\n- un\n- deux\n\n|a|b|\n|-|-|\n|1|2|");
+    expect(html).toContain("<h1>Piège</h1>");
+    expect(html).toContain("<strong>Fosse</strong> et <em>pieux</em>");
+    expect(html).toContain("<li>deux</li>");
+    expect(html).toContain("<td>2</td>");
+  });
+
+  it("garde les retours à la ligne d'une note en texte brut", () => {
+    expect(renderMarkdown("ligne 1\nligne 2")).toMatch(/ligne 1<br>\s*ligne 2/);
+  });
+
+  it("affiche le HTML écrit à la main comme du texte", () => {
+    const html = renderMarkdown('<script>alert(1)</script>\n\n<img src=x onerror="alert(1)"> et <b>x</b>');
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    expect(host.querySelector("script, img, b")).toBeNull();
+    expect(host.textContent).toContain("<script>alert(1)</script>");
+    expect(renderMarkdown("moins de <5 PV")).toContain("&lt;5 PV");
+  });
+
+  it("retire les liens dangereux et ouvre les autres dans un nouvel onglet", () => {
+    expect(renderMarkdown("[x](javascript:alert(1))")).not.toContain("javascript:");
+    expect(renderMarkdown("![x](javascript:alert(1))")).not.toContain("javascript:");
+    const host = document.createElement("div");
+    host.innerHTML = renderMarkdown("[règle](https://example.com/a)");
+    const link = host.querySelector("a")!;
+    expect(link.getAttribute("href")).toBe("https://example.com/a");
+    expect(link.target).toBe("_blank");
+    expect(link.rel).toBe("noopener noreferrer");
+  });
+
+  it("donne un aperçu sans mise en forme pour la liste", () => {
+    expect(markdownPreview("## **Fosse** cachée\n\nDétail")).toBe("Fosse cachée");
+    expect(markdownPreview("- un\n- deux")).toBe("un");
+    expect(markdownPreview("ligne 1\nligne 2")).toBe("ligne 1");
+    expect(markdownPreview("")).toBe("");
   });
 });
 
