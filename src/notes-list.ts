@@ -1,50 +1,64 @@
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
+import { icon } from "./icons";
 import { escapeHtml } from "./manual";
 import { markdownPreview } from "./markdown";
 import {
   LIST_POPOVER_ID,
   NOTE_CHANNEL,
-  NOTE_KEY,
-  NOTE_TYPES,
+  noteTypeLabel,
   NOTE_TYPE_IDS,
   centeredView,
   filterNotes,
-  isMapNote,
+  isNoteItem,
   type ListedNote,
   type NoteMessage,
   type NoteType,
 } from "./notes";
+import { currentLanguage, t } from "./i18n";
+import { readNote } from "./notes-scene";
 import "./style.css";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let items: Item[] = [];
+/** Notes déchiffrées de la scène ; une note illisible ici n'y figure pas. */
+let notes: ListedNote[] = [];
+let locked = 0;
 let filter: NoteType | "" = "";
 let search = "";
 
+async function readAll() {
+  const noteItems = items.filter(isNoteItem);
+  const read = await Promise.all(noteItems.map(async (item) => ({ id: item.id, note: await readNote(item) })));
+  notes = read.flatMap(({ id, note }) => (note ? [{ id, note }] : []));
+  locked = read.length - notes.length;
+  renderRows();
+}
+
 function renderRows() {
-  const notes: ListedNote[] = items.flatMap((item) => {
-    const note = item.metadata[NOTE_KEY];
-    return isMapNote(note) ? [{ id: item.id, note }] : [];
-  });
   const rows = filterNotes(notes, filter, search);
+  const lockedRow = locked
+    ? `<p class="info">${icon("lock", 14)}<span>${escapeHtml(t("crypto.locked"))}</span></p>`
+    : "";
+  const count = app.querySelector<HTMLElement>("#count");
+  if (count) count.textContent = notes.length + locked ? String(notes.length + locked) : "";
   app.querySelector<HTMLElement>("#rows")!.innerHTML = rows.length
     ? rows
         .map(
           ({ id, note }) => `
       <button type="button" class="note-row note-type-${note.type} ${note.done ? "note-done" : ""}" data-id="${escapeHtml(id)}">
-        <img src="/notes/${note.type}.svg" alt="${escapeHtml(NOTE_TYPES[note.type])}" width="24" height="24" />
+        <img src="/notes/${note.type}.svg" alt="${escapeHtml(noteTypeLabel(note.type))}" />
         <span>
           <strong>${escapeHtml(note.title)}</strong>
-          <small>${escapeHtml(markdownPreview(note.text))}</small>
+          ${note.text ? `<small>${escapeHtml(markdownPreview(note.text))}</small>` : ""}
         </span>
       </button>`,
         )
-        .join("")
-    : `<p class="hint note-empty">${
-        notes.length
-          ? "Aucune note ne correspond."
-          : "Aucune note dans cette scène. Choisis un type, puis clique sur la carte."
-      }</p>`;
+        .join("") + lockedRow
+    : notes.length
+      ? `<div class="empty">${icon("search", 22)}<span>${t("notes.noMatch")}</span></div>${lockedRow}`
+      : locked
+        ? lockedRow
+        : `<div class="empty">${icon("sheet", 24)}<span>${t("notes.noneYet")}</span></div>`;
 }
 
 async function goTo(itemId: string) {
@@ -70,20 +84,22 @@ async function goTo(itemId: string) {
 }
 
 function render() {
-  const filters = [["", "Toutes"], ...NOTE_TYPE_IDS.map((id) => [id, NOTE_TYPES[id]])];
+  const filters = [["", t("notes.all")], ...NOTE_TYPE_IDS.map((id) => [id, noteTypeLabel(id)])];
   app.innerHTML = `
     <div class="window note">
       <header class="bar">
-        <span class="title">Notes de la scène</span>
-        <button type="button" class="icon" id="close" title="Fermer">✕</button>
+        <span class="title">${t("notes.listTitle")}<span class="count" id="count"></span></span>
+        <button type="button" class="icon" id="close" title="${t("common.close")}">${icon("close")}</button>
       </header>
       <div class="note-filters">
-        <input id="search" type="search" placeholder="Rechercher…" aria-label="Rechercher" />
-        <div>
+        <div class="search">${icon("search", 14)}
+          <input id="search" type="search" placeholder="${t("notes.search")}" aria-label="${t("notes.search")}" />
+        </div>
+        <div class="chips">
           ${filters
             .map(
               ([id, label]) =>
-                `<button type="button" class="note-filter ${id ? `note-type-${id}` : ""} ${id === filter ? "active" : ""}" data-filter="${id}">${escapeHtml(label)}</button>`,
+                `<button type="button" class="chip ${id ? `note-type-${id}` : ""} ${id === filter ? "active" : ""}" data-filter="${id}">${id ? `<span class="dot"></span>` : ""}${escapeHtml(label)}</button>`,
             )
             .join("")}
         </div>
@@ -99,7 +115,7 @@ function render() {
   app.querySelectorAll<HTMLButtonElement>("[data-filter]").forEach((button) => {
     button.onclick = () => {
       filter = button.dataset.filter as NoteType | "";
-      app.querySelectorAll(".note-filter").forEach((other) => {
+      app.querySelectorAll(".chip").forEach((other) => {
         other.classList.toggle("active", other === button);
       });
       renderRows();
@@ -117,11 +133,12 @@ OBR.onReady(async () => {
     await OBR.popover.close(LIST_POPOVER_ID);
     return;
   }
+  document.documentElement.lang = currentLanguage();
   render();
   items = await OBR.scene.items.getItems();
-  renderRows();
+  await readAll();
   OBR.scene.items.onChange((next) => {
     items = next;
-    renderRows();
+    void readAll();
   });
 });

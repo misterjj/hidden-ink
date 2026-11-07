@@ -1,15 +1,18 @@
 import OBR, { type ContextMenuContext } from "@owlbear-rodeo/sdk";
-import { setupNotes } from "./notes-background";
+import { t } from "./i18n";
+import { setupNotes, showTokenNote } from "./notes-background";
 import {
   CHANNEL,
   EDITOR_POPOVER_ID,
   METADATA_KEY,
+  TOKEN_NOTE_KEY,
   MINI_HEIGHT,
   MINI_WIDTH,
   PLUGIN_ID,
   FRAME_ID,
   clampWindow,
   windowPopoverId,
+  type EditorTab,
   type Message,
 } from "./types";
 
@@ -127,13 +130,13 @@ async function removeFrame() {
   }
 }
 
-async function openEditor(itemId: string, tab?: "link" | "manual") {
+async function openEditor(itemId: string, tab?: EditorTab) {
   await OBR.popover.close(EDITOR_POPOVER_ID);
   await OBR.popover.open({
     id: EDITOR_POPOVER_ID,
     url: `/editor.html?item=${encodeURIComponent(itemId)}${tab ? `&tab=${tab}` : ""}`,
     width: 480,
-    height: 270,
+    height: 360,
     anchorReference: "POSITION",
     anchorPosition: {
       left: (await OBR.viewport.getWidth()) / 2,
@@ -151,7 +154,7 @@ let queue = Promise.resolve();
 function enqueue(message: Message) {
   queue = queue.then(() => handleMessage(message)).catch((error) => {
     console.error(error);
-    OBR.notification.show("Fiches de monstres : action impossible.", "ERROR");
+    OBR.notification.show(t("error.action"), "ERROR");
   });
 }
 
@@ -168,6 +171,9 @@ async function handleMessage(message: Message) {
     }
     case "edit":
       await openEditor(message.itemId, message.tab);
+      break;
+    case "token-note":
+      await showTokenNote(message.itemId);
       break;
     case "close":
       openWindows.delete(message.itemId);
@@ -278,13 +284,20 @@ OBR.onReady(() => {
     { key: "layer", value: "CHARACTER", coordinator: "||" as const },
     { key: "layer", value: "MOUNT" },
   ];
+  // Une note secrète se pose aussi sur un décor (calque Prop), y compris sur le token d'un joueur.
+  const canHoldNote = [
+    { key: "type", value: "IMAGE" },
+    { key: "layer", value: "CHARACTER", coordinator: "||" as const },
+    { key: "layer", value: "MOUNT", coordinator: "||" as const },
+    { key: "layer", value: "PROP" },
+  ];
 
   OBR.contextMenu.create({
     id: `${PLUGIN_ID}/menu`,
     icons: [
       {
         icon: "/icon.svg",
-        label: "Ajouter une fiche de monstre",
+        label: t("menu.addFiche"),
         filter: {
           ...base,
           every: [...isToken, { key: ["metadata", METADATA_KEY], value: undefined }],
@@ -292,7 +305,7 @@ OBR.onReady(() => {
       },
       {
         icon: "/icon.svg",
-        label: "Voir la fiche de monstre",
+        label: t("menu.viewFiche"),
         filter: { ...base, every: isToken },
       },
     ],
@@ -301,7 +314,32 @@ OBR.onReady(() => {
       const message: Message = item.metadata[METADATA_KEY]
         ? { type: "open", itemId: item.id }
         : { type: "edit", itemId: item.id };
+      // Le menu d'Owlbear reste ouvert tant que le token est sélectionné : il cacherait la fenêtre.
+      void OBR.player.deselect();
       enqueue(message);
+    },
+  });
+
+  OBR.contextMenu.create({
+    id: `${PLUGIN_ID}/menu-note`,
+    icons: [
+      {
+        icon: "/badge.svg",
+        label: t("menu.addTokenNote"),
+        filter: {
+          ...base,
+          every: [...canHoldNote, { key: ["metadata", TOKEN_NOTE_KEY], value: undefined }],
+        },
+      },
+      {
+        icon: "/badge.svg",
+        label: t("menu.viewTokenNote"),
+        filter: { ...base, every: canHoldNote },
+      },
+    ],
+    onClick(context: ContextMenuContext) {
+      void OBR.player.deselect();
+      enqueue({ type: "token-note", itemId: context.items[0].id });
     },
   });
 });

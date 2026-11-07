@@ -1,5 +1,8 @@
 import OBR, { type Item, type ToolEvent } from "@owlbear-rodeo/sdk";
-import { syncNoteItems, toggleTitles } from "./notes-scene";
+import { t } from "./i18n";
+import { KEY_STORAGE } from "./crypto";
+import { forgetDrawn, syncNoteItems, toggleTitles } from "./notes-scene";
+import { TOKEN_NOTE_KEY } from "./types";
 import {
   LIST_POPOVER_ID,
   NOTE_CHANNEL,
@@ -7,17 +10,17 @@ import {
   NOTE_MAX_HEIGHT,
   NOTE_POPOVER_ID,
   NOTE_TOOL_ID,
-  NOTE_TYPES,
-  NOTE_TYPE_IDS,
+  lastNoteType,
   NOTE_WIDTH,
-  isMapNote,
+  SETTINGS_POPOVER_ID,
+  isNoteItem,
   notePopoverPosition,
   type NoteMessage,
   type NoteType,
 } from "./notes";
 
-/** Note affichée et position du picto à l'ouverture, pour la suivre s'il bouge. */
-let shown: { id: string; x: number; y: number } | undefined;
+/** Note affichée et position de son objet à l'ouverture, pour la suivre s'il bouge. */
+let shown: { id: string; x: number; y: number; token?: boolean } | undefined;
 /** Une saisie en cours n'est jamais refermée par un clic sur la carte. */
 let editing = false;
 
@@ -25,14 +28,11 @@ let queue = Promise.resolve();
 function enqueue(action: () => Promise<void>) {
   queue = queue.then(action).catch((error) => {
     console.error(error);
-    OBR.notification.show("Notes de carte : action impossible.", "ERROR");
+    OBR.notification.show(t("error.action"), "ERROR");
   });
 }
 
-const noteOf = (item: Item | undefined) => {
-  const note = item?.metadata[NOTE_KEY];
-  return isMapNote(note) ? note : undefined;
-};
+const noteOf = (item: Item | undefined) => (item && isNoteItem(item) ? item : undefined);
 
 async function openPopover(query: URLSearchParams, point: { x: number; y: number }) {
   const screen = await OBR.viewport.transformPoint(point);
@@ -62,6 +62,16 @@ async function showNote(item: Item) {
   await openPopover(new URLSearchParams({ item: item.id }), item.position);
 }
 
+/** Note secrète d'un token, ouverte à côté de lui. */
+export async function showTokenNote(itemId: string) {
+  const [item] = await OBR.scene.items.getItems([itemId]);
+  if (!item) return;
+  shown = { id: item.id, ...item.position, token: true };
+  // Une nouvelle note s'ouvre directement en saisie.
+  editing = item.metadata[TOKEN_NOTE_KEY] === undefined;
+  await openPopover(new URLSearchParams({ token: item.id }), item.position);
+}
+
 async function hideNote() {
   shown = undefined;
   editing = false;
@@ -74,7 +84,8 @@ async function syncSelection(selection: string[] | undefined) {
     selection?.length === 1 ? await OBR.scene.items.getItems(selection) : [];
   if (noteOf(item)) {
     if (shown?.id !== item.id) await showNote(item);
-  } else if (shown) {
+  } else if (shown && !shown.token) {
+    // La note d'un token s'ouvre en le désélectionnant : elle ne se ferme que par son bouton.
     await hideNote();
   }
 }
@@ -82,20 +93,19 @@ async function syncSelection(selection: string[] | undefined) {
 async function syncItems(items: Item[]) {
   if (!shown) return;
   const current = items.find((item) => item.id === shown?.id);
-  if (!noteOf(current)) {
+  const stillThere = shown.token ? current !== undefined : noteOf(current) !== undefined;
+  if (!stillThere) {
     await hideNote();
-  } else if (
-    !editing &&
-    (current!.position.x !== shown.x || current!.position.y !== shown.y)
-  ) {
-    await showNote(current!);
+  } else if (!editing && (current!.position.x !== shown.x || current!.position.y !== shown.y)) {
+    if (shown.token) await showTokenNote(current!.id);
+    else await showNote(current!);
   }
 }
 
 function startNewNote(type: NoteType, event: ToolEvent) {
   enqueue(async () => {
     if (editing) {
-      await OBR.notification.show("Termine d'abord la note en cours.", "WARNING");
+      await OBR.notification.show(t("notes.finishFirst"), "WARNING");
       return;
     }
     const target = event.target;
@@ -130,45 +140,66 @@ async function openList() {
   });
 }
 
+export async function openSettings() {
+  await OBR.popover.close(SETTINGS_POPOVER_ID);
+  await OBR.popover.open({
+    id: SETTINGS_POPOVER_ID,
+    url: "/settings.html",
+    width: 380,
+    height: Math.min(560, (await OBR.viewport.getHeight()) - 96),
+    anchorReference: "POSITION",
+    anchorPosition: { left: 72, top: 72 },
+    anchorOrigin: { horizontal: "LEFT", vertical: "TOP" },
+    transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
+    disableClickAway: true,
+    marginThreshold: 8,
+  });
+}
+
 function createTool() {
   const gmOnly = { roles: ["GM" as const] };
   const whenActive = { activeTools: [NOTE_TOOL_ID], roles: ["GM" as const] };
   OBR.tool.create({
     id: NOTE_TOOL_ID,
-    icons: [{ icon: "/notes/outil.svg", label: "Notes de carte", filter: gmOnly }],
+    icons: [{ icon: "/notes/outil.svg", label: t("notes.tool"), filter: gmOnly }],
     disabled: { roles: ["PLAYER"] },
-    defaultMode: `${NOTE_TOOL_ID}/piege`,
+    defaultMode: `${NOTE_TOOL_ID}/poser`,
   });
-  for (const type of NOTE_TYPE_IDS) {
-    OBR.tool.createMode({
-      id: `${NOTE_TOOL_ID}/${type}`,
-      // Owlbear ne garde que la silhouette des icônes de la barre : pas de fond ni de couleur ici.
-      icons: [{ icon: `/notes/mode-${type}.svg`, label: NOTE_TYPES[type], filter: whenActive }],
-      cursors: [
-        {
-          cursor: "pointer",
-          filter: { target: [{ key: ["metadata", NOTE_KEY], operator: "!=", value: undefined }] },
-        },
-        { cursor: "crosshair" },
-      ],
-      onToolClick(_context, event) {
-        startNewNote(type, event);
-        return false;
+  // Un seul mode : le type se choisit dans la note, qui reprend le dernier type utilisé.
+  OBR.tool.createMode({
+    id: `${NOTE_TOOL_ID}/poser`,
+    icons: [{ icon: "/notes/outil.svg", label: t("notes.place"), filter: whenActive }],
+    cursors: [
+      {
+        cursor: "pointer",
+        filter: { target: [{ key: ["metadata", NOTE_KEY], operator: "!=", value: undefined }] },
       },
-    });
-  }
+      { cursor: "crosshair" },
+    ],
+    onToolClick(_context, event) {
+      startNewNote(lastNoteType(), event);
+      return false;
+    },
+  });
   OBR.tool.createAction({
     id: `${NOTE_TOOL_ID}/liste`,
-    icons: [{ icon: "/notes/liste.svg", label: "Liste des notes de la scène", filter: whenActive }],
+    icons: [{ icon: "/notes/liste.svg", label: t("notes.list"), filter: whenActive }],
     onClick() {
       enqueue(openList);
     },
   });
   OBR.tool.createAction({
     id: `${NOTE_TOOL_ID}/titres`,
-    icons: [{ icon: "/notes/titres.svg", label: "Afficher ou masquer les titres", filter: whenActive }],
+    icons: [{ icon: "/notes/titres.svg", label: t("notes.titles"), filter: whenActive }],
     onClick() {
       enqueue(toggleTitles);
+    },
+  });
+  OBR.tool.createAction({
+    id: `${NOTE_TOOL_ID}/reglages`,
+    icons: [{ icon: "/notes/reglages.svg", label: t("notes.settings"), filter: whenActive }],
+    onClick() {
+      enqueue(openSettings);
     },
   });
 }
@@ -185,6 +216,10 @@ export function setupNotes() {
     }
     enqueue(async () => {
       if ((await OBR.player.getRole()) !== "GM") return;
+      if (message.type === "settings") {
+        await openSettings();
+        return;
+      }
       if (message.type === "hide") {
         await hideNote();
         // Sinon, recliquer sur le même picto ne rouvrirait pas la note.
@@ -210,11 +245,18 @@ export function setupNotes() {
 
   OBR.scene.items.onChange((items) => {
     enqueue(() => whenGm(() => syncItems(items)));
+    // Titres, badges et chiffrement suivent les changements, sans bloquer la file.
+    void syncNoteItems();
+  });
+  // Clé importée dans les réglages : les notes deviennent lisibles, les titres reviennent.
+  window.addEventListener("storage", (event) => {
+    if (event.key === KEY_STORAGE) void syncNoteItems();
   });
 
   const onSceneReady = (ready: boolean) => {
     enqueue(async () => {
       if (ready) {
+        forgetDrawn();
         await whenGm(syncNoteItems);
       } else {
         await hideNote();

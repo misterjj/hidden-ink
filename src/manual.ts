@@ -1,10 +1,12 @@
+import { t } from "./i18n";
 import type { ManualFiche, Statblock } from "./types";
 
-const ABILITY_LABELS = ["FOR", "DEX", "CON", "INT", "SAG", "CHA"];
+/** FOR, DEX… ou STR, DEX…, dans l'ordre de la saisie. */
+export const abilityLabels = () => t("sheet.abilities").split(",");
 
 /** Titres reconnus sans « # », pour pouvoir coller le texte d'une fiche tel quel. */
 const SECTION_TITLES =
-  /^(traits|capacités|actions?( légendaires?| bonus| d'antre)?|réactions?|bonus actions?|legendary actions?)\s*:?$/i;
+  /^(traits|capacités|actions?( légendaires?| bonus| d'antre)?|réactions?|reactions?|bonus actions?|legendary actions?|lair actions?)\s*:?$/i;
 
 export const escapeHtml = (value: string) =>
   value
@@ -70,8 +72,8 @@ export function statblockToManual(statblock: Statblock): ManualFiche {
     const index = others.findIndex((prop) => pattern.test(prop.label));
     return index < 0 ? "" : htmlText(others.splice(index, 1)[0].valueHtml);
   };
-  const ac = take(/classe d'armure|^ac$|^ca$/i);
-  const hp = take(/points de vie|^hp$|^pv$/i);
+  const ac = take(/classe d'armure|armor class|^ac$|^ca$/i);
+  const hp = take(/points de vie|hit points|^hp$|^pv$/i);
   const speed = take(/vitesse|^speed$/i);
 
   const props = others.map((prop) => {
@@ -82,14 +84,14 @@ export function statblockToManual(statblock: Statblock): ManualFiche {
   const saves = statblock.abilities
     .filter((ability) => ability.save && ability.save !== ability.mod)
     .map((ability) => `${ability.label} ${ability.save}`);
-  if (saves.length) props.push(`Jets de sauvegarde : ${saves.join(", ")}`);
+  if (saves.length) props.push(`${t("sheet.saves")} : ${saves.join(", ")}`);
   if (statblock.source) props.push(`Source : ${statblock.source}`);
 
   const body = statblock.sections.flatMap((section) => [
     ...(section.title ? [`# ${section.title}`] : []),
     ...section.entries.flatMap(htmlLines),
   ]);
-  if (statblock.extrasHtml) body.push("# Description", ...htmlLines(statblock.extrasHtml));
+  if (statblock.extrasHtml) body.push(`# ${t("sheet.description")}`, ...htmlLines(statblock.extrasHtml));
 
   return {
     name: statblock.name,
@@ -97,7 +99,7 @@ export function statblockToManual(statblock: Statblock): ManualFiche {
     ac,
     hp,
     speed,
-    abilities: ABILITY_LABELS.map((_, index) => statblock.abilities[index]?.score ?? ""),
+    abilities: abilityLabels().map((_, index) => statblock.abilities[index]?.score ?? ""),
     props: props.join("\n"),
     body: body.join("\n"),
   };
@@ -105,9 +107,9 @@ export function statblockToManual(statblock: Statblock): ManualFiche {
 
 export function manualToStatblock(fiche: ManualFiche): Statblock {
   const props: Statblock["props"] = [
-    { label: "Classe d'armure", valueHtml: escapeHtml(fiche.ac) },
-    { label: "Points de vie", valueHtml: escapeHtml(fiche.hp) },
-    { label: "Vitesse", valueHtml: escapeHtml(fiche.speed) },
+    { label: t("sheet.ac"), valueHtml: escapeHtml(fiche.ac) },
+    { label: t("sheet.hp"), valueHtml: escapeHtml(fiche.hp) },
+    { label: t("sheet.speed"), valueHtml: escapeHtml(fiche.speed) },
   ].filter((prop) => prop.valueHtml);
 
   for (const raw of fiche.props.split(/\r?\n/)) {
@@ -130,13 +132,13 @@ export function manualToStatblock(fiche: ManualFiche): Statblock {
     type: fiche.type,
     props,
     abilities: hasAbilities
-      ? ABILITY_LABELS.map((label, index) => {
+      ? abilityLabels().map((label, index) => {
           const score = (fiche.abilities[index] ?? "").trim();
           return { label, score, mod: modifier(score) };
         })
       : [],
     sections: parseManualBody(fiche.body),
-    source: "Saisie à la main",
+    source: t("sheet.manualSource"),
     extrasHtml: "",
   };
 }

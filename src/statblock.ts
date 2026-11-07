@@ -1,6 +1,9 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { normalizeFicheUrl } from "../shared/aidedd";
+import { reveal } from "./crypto";
 import { FicheError, loadFromAidedd, resolveFiche } from "./data";
+import { currentLanguage, t } from "./i18n";
+import { icon } from "./icons";
 import { escapeHtml } from "./manual";
 import { statblockHtml, statblockParts, windowHtml, type Part } from "./sheet";
 import { startFrame } from "./frame";
@@ -8,6 +11,7 @@ import "./style.css";
 import {
   CHANNEL,
   METADATA_KEY,
+  TOKEN_NOTE_KEY,
   MINI_HEIGHT,
   MINI_PANEL_MAX,
   MINI_PANEL_RESERVE,
@@ -267,7 +271,7 @@ function showPart(part: Part, button: HTMLElement) {
 function renderTools(parts: Part[]) {
   const tools = document.querySelector<HTMLElement>("#mini-tools")!;
   if (!parts.length) {
-    tools.innerHTML = `<span class="hint">Fiche indisponible</span>`;
+    tools.innerHTML = `<span class="hint">${t("window.unavailable")}</span>`;
     return;
   }
   tools.innerHTML = parts
@@ -329,8 +333,8 @@ function setMinimized(value: boolean) {
   document.body.classList.toggle("minimized", value);
   const button = document.querySelector<HTMLButtonElement>("#minimize");
   if (button) {
-    button.textContent = value ? "▢" : "–";
-    button.title = value ? "Remettre en grand" : "Réduire";
+    button.innerHTML = icon(value ? "restore" : "minimize");
+    button.title = value ? t("window.restore") : t("window.minimize");
   }
 }
 
@@ -338,7 +342,9 @@ function wireControls() {
   document.querySelector<HTMLButtonElement>("#close")!.onclick = () =>
     send({ type: "close", itemId });
   document.querySelector<HTMLButtonElement>("#edit")!.onclick = () =>
-    send({ type: "edit", itemId, tab: fiche?.kind === "manual" ? "manual" : "link" });
+    send({ type: "edit", itemId, tab: fiche?.kind ?? "choice" });
+  document.querySelector<HTMLButtonElement>("#note")!.onclick = () =>
+    send({ type: "token-note", itemId });
   document.querySelector<HTMLButtonElement>("#minimize")!.onclick = () => {
     const next = !minimized;
     hidePart();
@@ -354,8 +360,8 @@ function errorHtml(message: string) {
   return `
     <div class="unavailable">
       <p class="error">${escapeHtml(message)}</p>
-      <p>Tu peux réessayer plus tard, ou remplir cette fiche à la main.</p>
-      <button type="button" class="primary" id="fill-manual">Saisir à la main</button>
+      <p>${t("window.retry")}</p>
+      <button type="button" class="btn primary" id="fill-manual">${icon("pen", 14)}${t("window.fillManual")}</button>
     </div>`;
 }
 
@@ -365,22 +371,38 @@ OBR.onReady(async () => {
     await OBR.popover.close(popoverId);
     return;
   }
+  document.documentElement.lang = currentLanguage();
   const [item] = await OBR.scene.items.getItems([itemId]);
-  fiche = item?.metadata[METADATA_KEY] as TokenFiche | undefined;
-  if (!fiche) {
+  if (!item?.metadata[METADATA_KEY]) {
     await send({ type: "close", itemId });
     return;
   }
+  let locked = false;
+  try {
+    fiche = await reveal<TokenFiche>(item.metadata[METADATA_KEY]);
+  } catch {
+    locked = true;
+  }
   viewportHeight = await OBR.viewport.getHeight();
 
-  const sourceUrl = fiche.kind === "link" ? normalizeFicheUrl(fiche.url) ?? undefined : undefined;
-  app.innerHTML = windowHtml(`<p class="hint">Chargement…</p>`, item.name, sourceUrl);
+  const sourceUrl = fiche?.kind === "link" ? normalizeFicheUrl(fiche.url) ?? undefined : undefined;
+  app.innerHTML = windowHtml(
+    `<p class="loading"><span class="spinner"></span>${t("common.loading")}</p>`,
+    item.name,
+    sourceUrl,
+    Boolean(item.metadata[TOKEN_NOTE_KEY]),
+  );
   setMinimized(minimized);
   wireControls();
   wireMiniHover();
 
   const sheet = sheetElement()!;
   rememberScroll(sheet);
+  if (locked || !fiche) {
+    renderTools([]);
+    sheet.innerHTML = `<div class="unavailable"><p class="error">${icon("lock", 14)}${escapeHtml(t("crypto.lockedFiche"))}</p></div>`;
+    return;
+  }
   try {
     const statblock = await resolveFiche(fiche);
     sheet.innerHTML = statblockHtml(statblock);
@@ -390,7 +412,7 @@ OBR.onReady(async () => {
   } catch (error) {
     renderTools([]);
     sheet.innerHTML = errorHtml(
-      error instanceof FicheError ? error.message : "Impossible d'afficher cette fiche.",
+      error instanceof FicheError ? error.message : t("window.error"),
     );
     document.querySelector<HTMLButtonElement>("#fill-manual")!.onclick = () =>
       send({ type: "edit", itemId, tab: "manual" });
@@ -399,7 +421,7 @@ OBR.onReady(async () => {
 
 // Aperçu hors d'Owlbear, en développement uniquement : /statblock.html?preview=<lien>
 if (import.meta.env.DEV && !OBR.isAvailable) {
-  app.innerHTML = windowHtml(`<p class="hint">Chargement…</p>`, "Aperçu");
+  app.innerHTML = windowHtml(`<p class="hint">${t("common.loading")}</p>`, "Preview");
   const sheet = sheetElement()!;
   loadFromAidedd(params.get("preview") ?? "")
     .then((statblock) => (sheet.innerHTML = statblockHtml(statblock)))

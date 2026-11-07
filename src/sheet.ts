@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+import { icon as uiIcon } from "./icons";
 import { escapeHtml } from "./manual";
 import type { Statblock } from "./types";
 
@@ -9,7 +11,7 @@ function abilitiesHtml(statblock: Statblock): string {
       <div class="ability">
         <strong>${escapeHtml(ability.label)}</strong>
         <span>${escapeHtml(ability.score)}${ability.mod ? ` (${escapeHtml(ability.mod)})` : ""}</span>
-        ${ability.save ? `<small>JS ${escapeHtml(ability.save)}</small>` : ""}
+        ${ability.save ? `<small>${t("sheet.saveShort")} ${escapeHtml(ability.save)}</small>` : ""}
       </div>`,
     )
     .join("")}</div>`;
@@ -36,7 +38,7 @@ export function statblockHtml(statblock: Statblock): string {
         </section>`,
       )
       .join("")}
-    ${statblock.extrasHtml ? `<details><summary>Description</summary>${statblock.extrasHtml}</details>` : ""}
+    ${statblock.extrasHtml ? `<details><summary>${t("sheet.description")}</summary>${statblock.extrasHtml}</details>` : ""}
     ${statblock.source ? `<p class="source">${escapeHtml(statblock.source)}</p>` : ""}`;
 }
 
@@ -63,7 +65,7 @@ export interface Part {
   html: string;
 }
 
-const DEFENSE = /classe d'armure|^ac$|^ca$|points de vie|^hp$|^pv$|vitesse|^speed$|initiative/i;
+const DEFENSE = /classe d'armure|armor class|^ac$|^ca$|points de vie|hit points|^hp$|^pv$|vitesse|^speed$|initiative/i;
 const RESIST = /résistance|immunité|vulnérabilité|resistance|immunit|vulnerab/i;
 
 function sectionIcon(title: string): string {
@@ -90,49 +92,50 @@ export function statblockParts(statblock: Statblock): Part[] {
 
   const parts: Part[] = [
     {
-      label: "Défense et déplacement",
+      label: t("part.defense"),
       icon: ICONS.defense,
       html: wrapProps(propsHtml(isDefense)),
     },
-    { label: "Caractéristiques", icon: ICONS.abilities, html: abilitiesHtml(statblock) },
+    { label: t("part.abilities"), icon: ICONS.abilities, html: abilitiesHtml(statblock) },
     {
-      label: "Résistances et immunités",
+      label: t("part.resist"),
       icon: ICONS.resist,
       html: wrapProps(propsHtml(isResist)),
     },
     {
-      label: "Compétences, sens et langues",
+      label: t("part.info"),
       icon: ICONS.info,
       html: wrapProps(propsHtml((label) => !isDefense(label) && !isResist(label))),
     },
     ...statblock.sections.map((section) => ({
-      label: section.title || "Capacités",
+      label: section.title || t("sheet.traits"),
       icon: section.title ? sectionIcon(section.title) : ICONS.traits,
       html: section.entries.join(""),
     })),
   ];
   if (statblock.extrasHtml) {
-    parts.push({ label: "Description", icon: ICONS.description, html: statblock.extrasHtml });
+    parts.push({ label: t("sheet.description"), icon: ICONS.description, html: statblock.extrasHtml });
   }
   return parts.filter((part) => part.html);
 }
 
 const wrapProps = (html: string) => (html ? `<div class="props">${html}</div>` : "");
 
-export function windowHtml(content: string, title: string, sourceUrl?: string) {
+export function windowHtml(content: string, title: string, sourceUrl?: string, hasNote = false) {
   return `
     <div class="window">
-      <header class="bar" id="drag" title="Glisser pour déplacer">
-        <span class="grip">⠿</span>
+      <header class="bar" id="drag" title="${t("window.drag")}">
+        <span class="grip">${uiIcon("grip", 14)}</span>
         <span class="title">${escapeHtml(title)}</span>
-        ${sourceUrl ? `<a class="icon source-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir sur AideDD">↗</a>` : ""}
-        <button type="button" class="icon" id="edit" title="Modifier la fiche">✎</button>
-        <button type="button" class="icon" id="minimize" title="Réduire">–</button>
-        <button type="button" class="icon" id="close" title="Fermer">✕</button>
+        ${sourceUrl ? `<a class="icon source-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" title="${t("window.openSource")}">${uiIcon("external")}</a>` : ""}
+        <button type="button" class="icon has-note" id="note" title="${t("window.note")}" ${hasNote ? "" : "hidden"}>${uiIcon("note")}</button>
+        <button type="button" class="icon" id="edit" title="${t("window.edit")}">${uiIcon("edit")}</button>
+        <button type="button" class="icon" id="minimize" title="${t("window.minimize")}">${uiIcon("minimize")}</button>
+        <button type="button" class="icon" id="close" title="${t("common.close")}">${uiIcon("close")}</button>
       </header>
       <div class="mini-tools" id="mini-tools"></div>
       <div class="mini-panel" id="mini-panel" hidden></div>
       <main class="sheet">${content}</main>
-      <div class="resize" id="resize" title="Redimensionner"></div>
+      <div class="resize" id="resize" title="${t("window.resize")}"></div>
     </div>`;
 }

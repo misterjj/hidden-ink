@@ -1,6 +1,8 @@
 // Identifiant d'origine, gardé après le renommage en Hidden Ink : les fiches et notes déjà posées en dépendent.
 export const PLUGIN_ID = "fiches-monstres-owlbear";
 export const METADATA_KEY = `${PLUGIN_ID}/fiche`;
+/** Note secrète posée sur un token, chiffrée comme le reste. */
+export const TOKEN_NOTE_KEY = `${PLUGIN_ID}/note-jeton`;
 export const CHANNEL = `${PLUGIN_ID}/messages`;
 export const EDITOR_POPOVER_ID = `${PLUGIN_ID}/editor`;
 /** Identifiant fixe : il ne peut jamais exister plus d'un cadre de déplacement à la fois. */
@@ -84,15 +86,26 @@ export interface ManualFiche {
   body: string;
 }
 
-/** Ce qui est stocké sur le token. */
+/** Ce qui est stocké sur le token, chiffré (voir crypto.ts). */
 export type TokenFiche =
   | { kind: "link"; url: string }
-  | { kind: "manual"; fiche: ManualFiche };
+  | { kind: "manual"; fiche: ManualFiche }
+  /** Clé Open5e, par exemple « srd_goblin ». */
+  | { kind: "open5e"; key: string };
+
+export type EditorTab = "choice" | "open5e" | "link" | "manual";
+
+/** Note secrète d'un token : du markdown. */
+export interface TokenNote {
+  text: string;
+}
 
 export type Message =
   | { type: "open"; itemId: string }
-  | { type: "edit"; itemId: string; tab?: "link" | "manual" }
+  | { type: "edit"; itemId: string; tab?: EditorTab }
   | { type: "close"; itemId: string }
+  /** Ouvre la note secrète du token, à côté de lui. */
+  | { type: "token-note"; itemId: string }
   | { type: "drag-start"; itemId: string; dragId: string }
   | { type: "drag-alive"; dragId: string }
   | { type: "drag-cancel"; itemId: string; dragId: string }

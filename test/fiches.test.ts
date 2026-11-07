@@ -14,11 +14,14 @@ import {
 } from "../src/notes";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import { setLanguage } from "../src/i18n";
 import { handleFicheRequest, normalizeFicheUrl } from "../shared/aidedd";
 import { manualToStatblock, parseManualBody, statblockToManual } from "../src/manual";
 import { markdownPreview, renderMarkdown } from "../src/markdown";
 import { parseStatblock } from "../src/parser";
 import { statblockParts } from "../src/sheet";
+
+setLanguage("fr");
 
 const fixture = (name: string) =>
   readFileSync(`test/fixtures/${name}.html`, "utf8");

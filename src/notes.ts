@@ -1,11 +1,16 @@
+import { locale, t } from "./i18n";
 import { PLUGIN_ID, clampPosition } from "./types";
 
 export const NOTE_KEY = `${PLUGIN_ID}/note`;
 export const NOTE_CHANNEL = `${PLUGIN_ID}/notes`;
 export const NOTE_POPOVER_ID = `${PLUGIN_ID}/note`;
 export const LIST_POPOVER_ID = `${PLUGIN_ID}/notes-liste`;
+export const SETTINGS_POPOVER_ID = `${PLUGIN_ID}/reglages`;
 export const NOTE_TOOL_ID = `${PLUGIN_ID}/outil-notes`;
 export const SHOW_TITLES_KEY = `${PLUGIN_ID}/notes-titres`;
+
+/** Nom de l'objet partagé : le titre de la note n'y est jamais écrit. */
+export const NOTE_ITEM_NAME = "Hidden Ink";
 
 export const NOTE_WIDTH = 340;
 export const NOTE_MAX_HEIGHT = 360;
@@ -24,15 +29,32 @@ export const NOTE_IMAGE_OFFSET = { x: 64, y: 64 };
 /** Au-delà, le titre sur la carte est coupé. Il reste entier dans la note. */
 export const MAX_LABEL_LENGTH = 32;
 
-export const NOTE_TYPES = {
-  piege: "Piège",
-  objet: "Objet caché",
-  mecanique: "Mécanique",
-  libre: "Note libre",
-} as const;
+export const NOTE_TYPE_IDS = ["piege", "objet", "mecanique", "libre"] as const;
+export type NoteType = (typeof NOTE_TYPE_IDS)[number];
 
-export type NoteType = keyof typeof NOTE_TYPES;
-export const NOTE_TYPE_IDS = Object.keys(NOTE_TYPES) as NoteType[];
+const LAST_TYPE_KEY = `${PLUGIN_ID}/dernier-type`;
+
+/** Type proposé pour une nouvelle note : le dernier choisi dans ce navigateur. */
+export function lastNoteType(): NoteType {
+  try {
+    const saved = localStorage.getItem(LAST_TYPE_KEY);
+    if (isNoteType(saved)) return saved;
+  } catch {
+    // Stockage indisponible : on part du piège.
+  }
+  return "piege";
+}
+
+export function rememberNoteType(type: NoteType) {
+  try {
+    localStorage.setItem(LAST_TYPE_KEY, type);
+  } catch {
+    // Sans stockage, le type par défaut reste le piège.
+  }
+}
+
+/** Nom du type dans la langue de l'interface. */
+export const noteTypeLabel = (type: NoteType) => t(`notes.type.${type}`);
 
 /** Ce qui est stocké sur le picto. Le texte est du markdown, affiché par `renderMarkdown`. */
 export interface MapNote {
@@ -45,10 +67,16 @@ export interface MapNote {
 export type NoteMessage =
   | { type: "show"; itemId: string }
   | { type: "hide" }
-  | { type: "editing"; value: boolean };
+  | { type: "editing"; value: boolean }
+  /** Ouvre les réglages, par exemple pour importer la clé. */
+  | { type: "settings" };
+
+/** Picto de note de carte, que la note soit chiffrée ou non. */
+export const isNoteItem = (item: { metadata: Record<string, unknown> }) =>
+  item.metadata[NOTE_KEY] !== undefined;
 
 export function isNoteType(value: unknown): value is NoteType {
-  return typeof value === "string" && Object.hasOwn(NOTE_TYPES, value);
+  return typeof value === "string" && (NOTE_TYPE_IDS as readonly string[]).includes(value);
 }
 
 export function isMapNote(value: unknown): value is MapNote {
@@ -82,12 +110,12 @@ export function buildNote(
 ): { note: MapNote } | { error: string } {
   const title = rawTitle.trim();
   const text = rawText.trim();
-  if (!title && !text) return { error: "Écris au moins un titre ou un texte." };
-  const note: MapNote = { type, title: title || NOTE_TYPES[type], text };
+  if (!title && !text) return { error: t("notes.empty") };
+  const note: MapNote = { type, title: title || noteTypeLabel(type), text };
   if (done) note.done = true;
   const size = new TextEncoder().encode(JSON.stringify(note)).length;
   if (size > MAX_NOTE_BYTES) {
-    return { error: `Note trop longue (${Math.ceil(size / 1024)} ko, 8 ko maximum).` };
+    return { error: t("notes.tooLong", { size: Math.ceil(size / 1024), max: MAX_NOTE_BYTES / 1024 }) };
   }
   return { note };
 }
@@ -99,17 +127,17 @@ export interface ListedNote {
 
 /** Notes à afficher : celles à faire d'abord, puis par titre. */
 export function filterNotes(notes: ListedNote[], type: NoteType | "", search: string) {
-  const wanted = search.trim().toLocaleLowerCase("fr");
+  const wanted = search.trim().toLocaleLowerCase(locale());
   return notes
     .filter(
       ({ note }) =>
         (!type || note.type === type) &&
-        (!wanted || `${note.title}\n${note.text}`.toLocaleLowerCase("fr").includes(wanted)),
+        (!wanted || `${note.title}\n${note.text}`.toLocaleLowerCase(locale()).includes(wanted)),
     )
     .sort(
       (a, b) =>
         Number(Boolean(a.note.done)) - Number(Boolean(b.note.done)) ||
-        a.note.title.localeCompare(b.note.title, "fr"),
+        a.note.title.localeCompare(b.note.title, locale()),
     );
 }
 

@@ -13,6 +13,7 @@ export default defineConfig({
         statblock: resolve("statblock.html"),
         notes: resolve("notes.html"),
         notesList: resolve("notes-list.html"),
+        settings: resolve("settings.html"),
       },
     },
   },
