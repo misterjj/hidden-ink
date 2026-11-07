@@ -1,4 +1,4 @@
-# Fiches de monstres pour Owlbear Rodeo
+# Hidden Ink — fiches de monstres et notes pour Owlbear Rodeo
 
 Attache une fiche de monstre à un token, dans une fenêtre réservée au MJ.
 La fiche vient d'un lien AideDD ou d'une saisie à la main.
@@ -74,7 +74,7 @@ pnpm run deploy
 ```
 
 Le manifest est alors à l'adresse
-`https://fiches-monstres-owlbear.pages.dev/manifest.json`, ou à l'adresse affichée
+`https://hidden-ink.pages.dev/manifest.json`, ou à l'adresse affichée
 par la commande si ce nom est déjà pris.
 
 Le relais doit être hébergé avec le site, car AideDD n'autorise pas la lecture

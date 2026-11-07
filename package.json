@@ -1,5 +1,5 @@
 {
-  "name": "fiches-monstres-owlbear",
+  "name": "hidden-ink",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "deploy": "pnpm build && npx wrangler pages deploy dist --project-name fiches-monstres-owlbear"
+    "deploy": "pnpm build && npx wrangler pages deploy dist --project-name hidden-ink"
   },
   "dependencies": {
     "@owlbear-rodeo/sdk": "^3.1.0",

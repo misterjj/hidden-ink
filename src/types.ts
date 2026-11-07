@@ -1,3 +1,4 @@
+// Identifiant d'origine, gardé après le renommage en Hidden Ink : les fiches et notes déjà posées en dépendent.
 export const PLUGIN_ID = "fiches-monstres-owlbear";
 export const METADATA_KEY = `${PLUGIN_ID}/fiche`;
 export const CHANNEL = `${PLUGIN_ID}/messages`;

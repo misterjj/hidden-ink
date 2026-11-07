@@ -74,7 +74,7 @@ export async function handleFicheRequest(
     upstream = await fetchImpl(target, {
       redirect: "manual",
       signal: AbortSignal.timeout(10_000),
-      headers: { "User-Agent": "fiches-monstres-owlbear/1.0" },
+      headers: { "User-Agent": "hidden-ink/1.0" },
     });
   } catch {
     return reply("AideDD ne répond pas", 502);
