@@ -1,10 +1,21 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { normalizeFicheUrl } from "../shared/aidedd";
+import { ficheSite, normalizeFicheUrl } from "../shared/fiche-url";
 import { LockedError, MissingKeyError, byteSize, reveal, seal } from "./crypto";
-import { FicheError, aideddAvailable, loadFromAidedd } from "./data";
+import { FicheError, aideddAvailable, loadFromLink } from "./data";
 import { currentLanguage, t } from "./i18n";
-import { icon } from "./icons";
+import { labelWithHelp, wireHelp } from "./help";
+import { icon, type IconName } from "./icons";
 import { abilityLabels, escapeHtml, statblockToManual } from "./manual";
+import {
+  DAGGERHEART_ROWS,
+  PF2E_ROWS,
+  daggerheartFormHtml,
+  pf2eFormHtml,
+  readDaggerheartForm,
+  readPf2eForm,
+  wireSystemForm,
+} from "./system-forms";
+import { emptyDaggerheart, emptyPf2e, statblockToDaggerheart, statblockToPf2e } from "./systems";
 import { NOTE_CHANNEL, type NoteMessage } from "./notes";
 import { formatChallenge, loadCreature, searchCreatures, type Open5eResult } from "./open5e";
 import "./style.css";
@@ -13,6 +24,7 @@ import {
   EDITOR_POPOVER_ID,
   METADATA_KEY,
   type EditorTab,
+  type GenericFiche,
   type ManualFiche,
   type Message,
   type Statblock,
@@ -21,8 +33,61 @@ import {
 
 // Les métadonnées sont synchronisées dans la scène : on évite d'y mettre un roman.
 const MAX_MANUAL_BYTES = 12 * 1024;
-const PANE_HEIGHTS: Record<EditorTab, number> = { choice: 360, open5e: 520, link: 300, manual: 780 };
+const PANE_HEIGHTS: Record<EditorTab, number> = {
+  choice: 400,
+  open5e: 520,
+  link: 300,
+  aon: 300,
+  dhsrd: 300,
+  manual: 780,
+  pf2e: 800,
+  daggerheart: 760,
+  generic: 600,
+};
 const SEARCH_DELAY_MS = 300;
+
+/** Le même formulaire de lien sert aux trois sites ; seuls les textes changent. */
+type LinkTab = "link" | "aon" | "dhsrd";
+const isLinkTab = (tab: EditorTab): tab is LinkTab => tab === "link" || tab === "aon" || tab === "dhsrd";
+
+const LINK_TEXT: Record<LinkTab, () => { placeholder: string; hint: string }> = {
+  link: () => ({ placeholder: "https://www.aidedd.org/dnd/monstres.php?vf=tertre-errant", hint: t("editor.link.hint") }),
+  aon: () => ({ placeholder: "https://2e.aonprd.com/Monsters.aspx?ID=3330", hint: t("editor.link.aonHint") }),
+  dhsrd: () => ({
+    placeholder: "https://seansbox.github.io/daggerheart-srd/adversaries/Bear/",
+    hint: t("editor.link.daggerheartHint"),
+  }),
+};
+
+/** Jeux proposés en onglets dans l'écran de choix. */
+type GameSystem = "dnd" | "pf2e" | "daggerheart" | "other";
+const SYSTEMS: GameSystem[] = ["dnd", "pf2e", "daggerheart", "other"];
+const SYSTEM_KEY = "hidden-ink/systeme";
+
+/** Dernier jeu choisi dans ce navigateur : son onglet s'ouvre en premier. */
+function savedSystem(): GameSystem | null {
+  try {
+    const value = localStorage.getItem(SYSTEM_KEY) as GameSystem | null;
+    return value && SYSTEMS.includes(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSystem(system: GameSystem) {
+  try {
+    localStorage.setItem(SYSTEM_KEY, system);
+  } catch {
+    // Sans stockage, le choix ne dure que le temps de la fenêtre.
+  }
+}
+
+/** Onglet d'un lien déjà posé, selon son site. */
+const linkTab = (url: string): LinkTab =>
+  ({ aidedd: "link", aon: "aon", daggerheart: "dhsrd" } as const)[ficheSite(normalizeFicheUrl(url) ?? url)];
+
+/** Saisie guidée où « Adapter » recopie la fiche d'un lien. */
+const FORM_FOR_LINK = { link: "manual", aon: "pf2e", dhsrd: "daggerheart" } as const;
 
 const params = new URLSearchParams(location.search);
 const itemId = params.get("item") ?? "";
@@ -83,10 +148,19 @@ function renderLocked() {
 }
 
 function render(current: TokenFiche | undefined, tokenName: string, tab: EditorTab) {
-  const showLink = aideddAvailable() || current?.kind === "link";
-  // En français, AideDD donne des fiches dans la langue de la table : c'est lui qu'on conseille.
-  const recommendLink = showLink && currentLanguage() === "fr";
-  const recommended = `<em class="tag">${t("editor.recommended")}</em>`;
+  const currentUrl = current?.kind === "link" ? current.url : "";
+  // Un lien AideDD déjà posé reste modifiable, même si AideDD a été retiré au build.
+  const showLink = aideddAvailable() || (currentUrl !== "" && linkTab(currentUrl) === "link");
+  // Onglet ouvert en premier : le jeu de la fiche déjà posée, sinon le dernier choisi.
+  const currentSystem: GameSystem | null =
+    current?.kind === "link"
+      ? ({ link: "dnd", aon: "pf2e", dhsrd: "daggerheart" } as const)[linkTab(currentUrl)]
+      : current?.kind === "manual" || current?.kind === "open5e"
+        ? "dnd"
+        : current?.kind === "pf2e" || current?.kind === "daggerheart"
+          ? current.kind
+          : null;
+  let system: GameSystem = currentSystem ?? savedSystem() ?? "dnd";
   const manual: ManualFiche =
     current?.kind === "manual"
       ? current.fiche
@@ -100,9 +174,33 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
           props: "",
           body: "",
         };
+  const generic: GenericFiche =
+    current?.kind === "generic" ? current.fiche : { name: tokenName, type: "", props: "", body: "" };
   const field = (name: keyof ManualFiche, label: string, placeholder = "") => `
     <label>${label}<input name="${name}" value="${escapeHtml(String(manual[name]))}" placeholder="${escapeHtml(placeholder)}" /></label>`;
-
+  const genericField = (name: "name" | "type", label: string, placeholder = "") => `
+    <label>${label}<input name="${name}" value="${escapeHtml(generic[name])}" placeholder="${escapeHtml(placeholder)}" /></label>`;
+  const choice = (go: EditorTab, iconName: IconName, title: string, hint: string) => `
+          <button type="button" class="choice" data-go="${go}">
+            <span class="choice-icon">${icon(iconName, 18)}</span>
+            <span><strong>${title}</strong><small>${hint}</small></span>
+          </button>`;
+  const CHOICES: Record<GameSystem, string> = {
+    dnd: [
+      showLink ? choice("link", "link", t("editor.choice.link"), t("editor.choice.linkHint")) : "",
+      choice("open5e", "book", t("editor.choice.open5e"), t("editor.choice.open5eHint")),
+      choice("manual", "pen", t("editor.choice.manual"), t("editor.choice.manualHint")),
+    ].join(""),
+    pf2e: [
+      choice("aon", "link", t("editor.choice.aon"), t("editor.choice.aonHint")),
+      choice("pf2e", "pen", t("editor.choice.manual"), t("editor.choice.manualPf2eHint")),
+    ].join(""),
+    daggerheart: [
+      choice("dhsrd", "link", t("editor.choice.daggerheart"), t("editor.choice.daggerheartHint")),
+      choice("daggerheart", "pen", t("editor.choice.manual"), t("editor.choice.manualDaggerheartHint")),
+    ].join(""),
+    other: choice("generic", "sheet", t("editor.choice.generic"), t("editor.choice.genericHint")),
+  };
   app.innerHTML = `
     <div class="editor">
       <header class="bar">
@@ -111,24 +209,13 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
       </header>
       <div class="pane" data-pane="choice">
         <h2>${t("editor.question")}</h2>
-        <div class="choices">
-          <button type="button" class="choice" data-go="open5e">
-            <span class="choice-icon">${icon("book", 18)}</span>
-            <span><strong>${t("editor.choice.open5e")}${recommendLink ? "" : recommended}</strong><small>${t("editor.choice.open5eHint")}</small></span>
-          </button>
-          ${
-            showLink
-              ? `<button type="button" class="choice" data-go="link">
-            <span class="choice-icon">${icon("link", 18)}</span>
-            <span><strong>${t("editor.choice.link")}${recommendLink ? recommended : ""}</strong><small>${t("editor.choice.linkHint")}</small></span>
-          </button>`
-              : ""
-          }
-          <button type="button" class="choice" data-go="manual">
-            <span class="choice-icon">${icon("pen", 18)}</span>
-            <span><strong>${t("editor.choice.manual")}</strong><small>${t("editor.choice.manualHint")}</small></span>
-          </button>
+        <div class="segmented systems" role="tablist" aria-label="${t("editor.system.label")}">
+          ${SYSTEMS.map(
+            (name) =>
+              `<button type="button" role="tab" data-system="${name}" aria-selected="${name === system}" aria-pressed="${name === system}">${t(`editor.system.${name}`)}</button>`,
+          ).join("")}
         </div>
+        <div class="choices" id="choices" role="tabpanel"></div>
       </div>
 
       <button type="button" class="btn ghost small back-link" id="back" hidden>${icon("back", 14)}${t("editor.back").replace("← ", "")}</button>
@@ -143,8 +230,7 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
 
       <form id="link-form" class="pane" data-pane="link">
         <label>${t("editor.link.label")}
-          <input name="url" autocomplete="off" placeholder="https://www.aidedd.org/dnd/monstres.php?vf=tertre-errant"
-            value="${current?.kind === "link" ? escapeHtml(current.url) : ""}" />
+          <input name="url" autocomplete="off" value="${escapeHtml(currentUrl)}" />
         </label>
         <p class="error" id="link-error" hidden></p>
         <div class="row">
@@ -152,19 +238,20 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
           <button type="button" class="btn" id="adapt">${t("editor.link.adapt")}</button>
           <button type="button" class="btn" id="to-manual" hidden>${t("editor.link.toManual")}</button>
         </div>
-        <p class="hint">${t("editor.link.hint")}</p>
+        <p class="hint" id="link-hint"></p>
       </form>
 
       <form id="manual-form" class="pane" data-pane="manual">
         <div class="group">
-          ${field("name", t("editor.manual.name"))}
-          ${field("type", t("editor.manual.type"), t("editor.manual.typePlaceholder"))}
+          ${field("name", labelWithHelp(t("editor.manual.name"), t("help.name")))}
+          ${field("type", labelWithHelp(t("editor.manual.type"), t("help.dnd.type")), t("editor.manual.typePlaceholder"))}
         </div>
         <div class="row3">
-          ${field("ac", t("editor.manual.ac"), t("editor.manual.acPlaceholder"))}
-          ${field("hp", t("editor.manual.hp"), t("editor.manual.hpPlaceholder"))}
-          ${field("speed", t("editor.manual.speed"), t("editor.manual.speedPlaceholder"))}
+          ${field("ac", labelWithHelp(t("editor.manual.ac"), t("help.dnd.ac")), t("editor.manual.acPlaceholder"))}
+          ${field("hp", labelWithHelp(t("editor.manual.hp"), t("help.dnd.hp")), t("editor.manual.hpPlaceholder"))}
+          ${field("speed", labelWithHelp(t("editor.manual.speed"), t("help.dnd.speed")), t("editor.manual.speedPlaceholder"))}
         </div>
+        <p class="field-caption">${labelWithHelp(t("editor.attributes"), t("help.dnd.abilities"))}</p>
         <div class="row6">
           ${abilityLabels()
             .map(
@@ -173,42 +260,97 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
             )
             .join("")}
         </div>
-        <label>${t("editor.manual.props")} <small>${t("editor.manual.propsHint")}</small>
+        <label>${labelWithHelp(t("editor.manual.props"), t("help.props"))}
           <textarea name="props" rows="5" placeholder="${escapeHtml(t("editor.manual.propsPlaceholder"))}">${escapeHtml(manual.props)}</textarea>
         </label>
-        <label>${t("editor.manual.body")} <small>${t("editor.manual.bodyHint")}</small>
+        <label>${labelWithHelp(t("editor.manual.body"), t("help.body"))}
           <textarea name="body" rows="9" placeholder="${escapeHtml(t("editor.manual.bodyPlaceholder"))}">${escapeHtml(manual.body)}</textarea>
         </label>
         <p class="error" id="manual-error" hidden></p>
       </form>
 
+      <form id="generic-form" class="pane" data-pane="generic">
+        <div class="group">
+          ${genericField("name", labelWithHelp(t("editor.manual.name"), t("help.name")))}
+          ${genericField("type", labelWithHelp(t("editor.generic.type"), t("help.generic.type")), t("editor.generic.typePlaceholder"))}
+        </div>
+        <label>${labelWithHelp(t("editor.generic.props"), t("help.props"))}
+          <textarea name="props" rows="6" placeholder="${escapeHtml(t("editor.generic.propsPlaceholder"))}">${escapeHtml(generic.props)}</textarea>
+        </label>
+        <label>${labelWithHelp(t("editor.generic.body"), t("help.body"))}
+          <textarea name="body" rows="10" placeholder="${escapeHtml(t("editor.generic.bodyPlaceholder"))}">${escapeHtml(generic.body)}</textarea>
+        </label>
+        <p class="error" id="generic-error" hidden></p>
+      </form>
+
+      <form id="pf2e-form" class="pane system-form" data-pane="pf2e">${pf2eFormHtml(
+        current?.kind === "pf2e" ? current.fiche : emptyPf2e(tokenName),
+      )}</form>
+
+      <form id="daggerheart-form" class="pane system-form" data-pane="daggerheart">${daggerheartFormHtml(
+        current?.kind === "daggerheart" ? current.fiche : emptyDaggerheart(tokenName),
+      )}</form>
+
       <footer class="footer" id="footer">
         ${current ? `<button type="button" class="btn danger" id="remove">${icon("trash", 14)}${t("editor.remove")}</button>` : ""}
         <span class="spacer"></span>
-        <button type="submit" form="manual-form" class="btn primary" id="manual-submit">${t("editor.manual.submit")}</button>
+        <button type="submit" form="manual-form" class="btn primary" id="form-submit">${t("editor.manual.submit")}</button>
       </footer>
     </div>`;
 
+  /** Site du formulaire de lien : décide de ses textes et du formulaire où « Adapter » recopie la fiche. */
+  let linkSite: LinkTab = currentUrl ? linkTab(currentUrl) : "link";
   const showTab = (name: EditorTab) => {
-    app.querySelectorAll<HTMLElement>(".pane").forEach((pane) => {
-      pane.hidden = pane.dataset.pane !== name;
+    if (isLinkTab(name)) {
+      linkSite = name;
+      const text = LINK_TEXT[name]();
+      app.querySelector<HTMLInputElement>("#link-form input")!.placeholder = text.placeholder;
+      app.querySelector<HTMLElement>("#link-hint")!.innerHTML = text.hint;
+    }
+    const pane = isLinkTab(name) ? "link" : name;
+    app.querySelectorAll<HTMLElement>(".pane").forEach((element) => {
+      element.hidden = element.dataset.pane !== pane;
     });
     app.querySelector<HTMLButtonElement>("#back")!.hidden = name === "choice";
-    // Le pied n'a de sens qu'avec la saisie à la main, ou pour retirer une fiche existante.
-    app.querySelector<HTMLButtonElement>("#manual-submit")!.hidden = name !== "manual";
-    app.querySelector<HTMLElement>("#footer")!.hidden = name !== "manual" && !current;
-    const wanted = PANE_HEIGHTS[name] + (current || name === "manual" ? 48 : 0);
+    // Le pied n'a de sens qu'avec un formulaire, ou pour retirer une fiche existante.
+    const isForm = name === "manual" || name === "generic" || name === "pf2e" || name === "daggerheart";
+    const submitButton = app.querySelector<HTMLButtonElement>("#form-submit")!;
+    submitButton.hidden = !isForm;
+    if (isForm) submitButton.setAttribute("form", `${name}-form`);
+    app.querySelector<HTMLElement>("#footer")!.hidden = !isForm && !current;
+    const wanted = PANE_HEIGHTS[name] + (current || isForm ? 48 : 0);
     OBR.viewport
       .getHeight()
       .then((viewport) => OBR.popover.setHeight(EDITOR_POPOVER_ID, Math.min(wanted, viewport - 32)));
-    if (name === "link") app.querySelector<HTMLInputElement>("#link-form input")!.focus();
+    if (isLinkTab(name)) app.querySelector<HTMLInputElement>("#link-form input")!.focus();
     if (name === "open5e") app.querySelector<HTMLInputElement>("#open5e-search")!.focus();
   };
   showTab(tab === "link" && !showLink ? "choice" : tab);
   app.querySelector<HTMLButtonElement>("#back")!.onclick = () => showTab("choice");
-  app.querySelectorAll<HTMLButtonElement>("[data-go]").forEach((button) => {
-    button.onclick = () => showTab(button.dataset.go as EditorTab);
+  wireHelp(app);
+
+  // --- Onglets des jeux ---------------------------------------------------------------
+  const choices = app.querySelector<HTMLElement>("#choices")!;
+  const showSystem = (name: GameSystem) => {
+    system = name;
+    app.querySelectorAll<HTMLButtonElement>("[data-system]").forEach((button) => {
+      const selected = button.dataset.system === name;
+      button.setAttribute("aria-selected", String(selected));
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    choices.innerHTML = CHOICES[name];
+  };
+  showSystem(system);
+  app.querySelectorAll<HTMLButtonElement>("[data-system]").forEach((button) => {
+    button.onclick = () => showSystem(button.dataset.system as GameSystem);
   });
+  choices.onclick = (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-go]");
+    if (!button) return;
+    // Le jeu choisi s'ouvrira en premier la prochaine fois.
+    saveSystem(system);
+    showTab(button.dataset.go as EditorTab);
+  };
 
   app.querySelector<HTMLButtonElement>("#cancel")!.onclick = () => OBR.popover.close(EDITOR_POPOVER_ID);
 
@@ -216,6 +358,107 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
     await save(undefined);
     await finish(false);
   });
+
+  // --- Saisie à la main et fiche libre ---------------------------------------------------
+  const manualForm = app.querySelector<HTMLFormElement>("#manual-form")!;
+  const genericForm = app.querySelector<HTMLFormElement>("#generic-form")!;
+  const setField = (form: HTMLFormElement, name: string, value: string) => {
+    (form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement).value = value;
+  };
+  const fillManualForm = (fiche: ManualFiche) => {
+    for (const name of ["name", "type", "ac", "hp", "speed", "props", "body"] as const) {
+      setField(manualForm, name, fiche[name]);
+    }
+    fiche.abilities.forEach((score, index) => setField(manualForm, `ability${index}`, score ?? ""));
+  };
+  const pf2eForm = app.querySelector<HTMLFormElement>("#pf2e-form")!;
+  const daggerheartForm = app.querySelector<HTMLFormElement>("#daggerheart-form")!;
+  const fillPf2eForm = (fiche: Parameters<typeof pf2eFormHtml>[0]) => {
+    pf2eForm.innerHTML = pf2eFormHtml(fiche);
+  };
+  const fillDaggerheartForm = (fiche: Parameters<typeof daggerheartFormHtml>[0]) => {
+    daggerheartForm.innerHTML = daggerheartFormHtml(fiche);
+  };
+  wireSystemForm(pf2eForm, PF2E_ROWS);
+  wireSystemForm(daggerheartForm, DAGGERHEART_ROWS, fillDaggerheartForm);
+
+  /** Vérifie la taille, enregistre sur le token et ouvre la fiche. */
+  const submitForm = async (form: HTMLFormElement, errorId: string, fiche: TokenFiche & { fiche: { name: string } }) => {
+    const error = app.querySelector<HTMLParagraphElement>(errorId)!;
+    const size = byteSize(fiche.fiche);
+    if (!fiche.fiche.name) {
+      error.textContent = t("editor.manual.nameRequired");
+    } else if (size > MAX_MANUAL_BYTES) {
+      error.textContent = t("editor.manual.tooLong", {
+        size: Math.ceil(size / 1024),
+        max: MAX_MANUAL_BYTES / 1024,
+      });
+    } else {
+      try {
+        await save(fiche);
+        await finish(true);
+        return;
+      } catch (saveError) {
+        error.textContent = errorText(saveError, t("editor.manual.saveError"));
+      }
+    }
+    error.hidden = false;
+    form.querySelector<HTMLElement>("[name=name]")?.focus();
+  };
+  const formValue = (form: HTMLFormElement) => {
+    const data = new FormData(form);
+    return (key: string) => String(data.get(key) ?? "").trim();
+  };
+
+  manualForm.oninput = () => {
+    app.querySelector<HTMLParagraphElement>("#manual-error")!.hidden = true;
+  };
+  manualForm.onsubmit = (event) => {
+    event.preventDefault();
+    const value = formValue(manualForm);
+    submitForm(manualForm, "#manual-error", {
+      kind: "manual",
+      fiche: {
+        name: value("name"),
+        type: value("type"),
+        ac: value("ac"),
+        hp: value("hp"),
+        speed: value("speed"),
+        abilities: abilityLabels().map((_, index) => value(`ability${index}`)),
+        props: value("props"),
+        body: value("body"),
+      },
+    });
+  };
+
+  for (const form of [pf2eForm, daggerheartForm]) {
+    form.oninput = () => {
+      form.querySelector<HTMLElement>("[data-error]")!.hidden = true;
+    };
+  }
+  pf2eForm.onsubmit = (event) => {
+    event.preventDefault();
+    submitForm(pf2eForm, "#pf2e-form [data-error]", { kind: "pf2e", fiche: readPf2eForm(pf2eForm) });
+  };
+  daggerheartForm.onsubmit = (event) => {
+    event.preventDefault();
+    submitForm(daggerheartForm, "#daggerheart-form [data-error]", {
+      kind: "daggerheart",
+      fiche: readDaggerheartForm(daggerheartForm),
+    });
+  };
+
+  genericForm.oninput = () => {
+    app.querySelector<HTMLParagraphElement>("#generic-error")!.hidden = true;
+  };
+  genericForm.onsubmit = (event) => {
+    event.preventDefault();
+    const value = formValue(genericForm);
+    submitForm(genericForm, "#generic-error", {
+      kind: "generic",
+      fiche: { name: value("name"), type: value("type"), props: value("props"), body: value("body") },
+    });
+  };
 
   // --- Open5e ---------------------------------------------------------------------
   const searchInput = app.querySelector<HTMLInputElement>("#open5e-search")!;
@@ -298,13 +541,15 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
     runSearch();
   }
 
-  // --- AideDD ---------------------------------------------------------------------
+  // --- Lien : AideDD, Archives of Nethys ou SRD Daggerheart ------------------------
   const linkForm = app.querySelector<HTMLFormElement>("#link-form")!;
   const linkInput = linkForm.elements.namedItem("url") as HTMLInputElement;
   const linkError = app.querySelector<HTMLParagraphElement>("#link-error")!;
   const submit = app.querySelector<HTMLButtonElement>("#link-submit")!;
   const toManual = app.querySelector<HTMLButtonElement>("#to-manual")!;
-  toManual.onclick = () => showTab("manual");
+  // Chaque lien se recopie dans la saisie guidée de son jeu.
+  const formFor = () => FORM_FOR_LINK[linkSite];
+  toManual.onclick = () => showTab(formFor());
   const adapt = app.querySelector<HTMLButtonElement>("#adapt")!;
 
   const withLoadedLink = async (
@@ -318,7 +563,7 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
     submit.disabled = adapt.disabled = true;
     button.textContent = t("common.loading");
     try {
-      await action(await loadFromAidedd(linkInput.value));
+      await action(await loadFromLink(linkInput.value));
     } catch (error) {
       linkError.textContent = errorText(error, fallbackError);
       linkError.hidden = false;
@@ -336,8 +581,10 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
   // Rien n'est enregistré ici : le lien reste en place tant que le formulaire n'est pas validé.
   adapt.onclick = () =>
     withLoadedLink(adapt, t("editor.link.loadError"), (statblock) => {
-      fillManualForm(statblockToManual(statblock));
-      showTab("manual");
+      if (formFor() === "manual") fillManualForm(statblockToManual(statblock));
+      else if (formFor() === "pf2e") fillPf2eForm(statblockToPf2e(statblock));
+      else fillDaggerheartForm(statblockToDaggerheart(statblock));
+      showTab(formFor());
     });
   linkForm.onsubmit = (event) => {
     event.preventDefault();
@@ -349,56 +596,6 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
       if (normalizeFicheUrl(linkInput.value)) attach();
     });
   });
-
-  // --- Saisie à la main -------------------------------------------------------------
-  const manualForm = app.querySelector<HTMLFormElement>("#manual-form")!;
-  const fillManualForm = (fiche: ManualFiche) => {
-    const set = (name: string, value: string) => {
-      (manualForm.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement).value = value;
-    };
-    for (const name of ["name", "type", "ac", "hp", "speed", "props", "body"] as const) {
-      set(name, fiche[name]);
-    }
-    fiche.abilities.forEach((score, index) => set(`ability${index}`, score ?? ""));
-  };
-
-  manualForm.oninput = () => {
-    app.querySelector<HTMLParagraphElement>("#manual-error")!.hidden = true;
-  };
-  manualForm.onsubmit = async (event) => {
-    event.preventDefault();
-    const data = new FormData(manualForm);
-    const value = (key: string) => String(data.get(key) ?? "").trim();
-    const fiche: ManualFiche = {
-      name: value("name"),
-      type: value("type"),
-      ac: value("ac"),
-      hp: value("hp"),
-      speed: value("speed"),
-      abilities: abilityLabels().map((_, index) => value(`ability${index}`)),
-      props: value("props"),
-      body: value("body"),
-    };
-    const manualError = app.querySelector<HTMLParagraphElement>("#manual-error")!;
-    const size = byteSize(fiche);
-    if (!fiche.name) {
-      manualError.textContent = t("editor.manual.nameRequired");
-    } else if (size > MAX_MANUAL_BYTES) {
-      manualError.textContent = t("editor.manual.tooLong", {
-        size: Math.ceil(size / 1024),
-        max: MAX_MANUAL_BYTES / 1024,
-      });
-    } else {
-      try {
-        await save({ kind: "manual", fiche });
-        await finish(true);
-        return;
-      } catch (error) {
-        manualError.textContent = errorText(error, t("editor.manual.saveError"));
-      }
-    }
-    manualError.hidden = false;
-  };
 }
 
 OBR.onReady(async () => {
@@ -419,6 +616,7 @@ OBR.onReady(async () => {
     throw error;
   }
   // Token sans fiche : on commence par le choix de la méthode.
-  const tab = (params.get("tab") as EditorTab | null) ?? current?.kind ?? "choice";
+  const tab =
+    (params.get("tab") as EditorTab | null) ?? (current?.kind === "link" ? linkTab(current.url) : current?.kind) ?? "choice";
   render(current, item?.name ?? "", tab);
 });

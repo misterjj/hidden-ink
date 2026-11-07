@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
-import { handleFicheRequest } from "./shared/aidedd";
+import { handleFicheRequest } from "./shared/fiche-url";
 
 export default defineConfig({
   // En dev, Owlbear charge le manifest depuis un autre domaine.

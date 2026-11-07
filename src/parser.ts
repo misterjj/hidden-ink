@@ -1,4 +1,6 @@
+import { ficheSite } from "../shared/fiche-url";
 import { escapeHtml } from "./manual";
+import { parseAon, parseDaggerheart } from "./parser-sites";
 import type { Ability, Statblock } from "./types";
 
 const ALLOWED_TAGS = new Set(
@@ -9,7 +11,7 @@ const DROPPED_TAGS = new Set(
 );
 
 /** Ne garde que des balises de mise en forme, sans aucun attribut (sauf les liens AideDD). */
-function clean(nodes: Iterable<Node>, baseUrl: string, doc: Document): string {
+export function clean(nodes: Iterable<Node>, baseUrl: string, doc: Document): string {
   const out = doc.createElement("div");
 
   const copy = (node: Node, parent: Node) => {
@@ -56,7 +58,7 @@ function safeHref(href: string | null, baseUrl: string): string | null {
   }
 }
 
-const text = (element: Element | null | undefined) =>
+export const text = (element: Element | null | undefined) =>
   element?.textContent?.replace(/\s+/g, " ").trim() ?? "";
 
 function parseAbilities(root: Element): Ability[] {
@@ -156,8 +158,15 @@ function parseSections(root: Element, baseUrl: string, doc: Document) {
   return sections.filter((section) => section.title || section.entries.length);
 }
 
-/** Extrait la fiche d'une page AideDD. Renvoie null si ce n'est pas une fiche. */
+/** Extrait la fiche d'une page, selon son site. Renvoie null si ce n'est pas une fiche. */
 export function parseStatblock(html: string, pageUrl: string): Statblock | null {
+  const site = ficheSite(pageUrl);
+  if (site === "aon") return parseAon(html, pageUrl);
+  if (site === "daggerheart") return parseDaggerheart(html, pageUrl);
+  return parseAidedd(html, pageUrl);
+}
+
+function parseAidedd(html: string, pageUrl: string): Statblock | null {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const root = doc.querySelector(".jaune");
   const name = text(root?.querySelector("h1"));

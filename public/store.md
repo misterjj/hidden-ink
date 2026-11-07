@@ -19,7 +19,7 @@ learn-more: https://github.com/misterjj/hidden-ink
 
 ## Features
 
-- **Stat blocks on tokens:** search the SRD with Open5e, or write one by hand. Move, resize, or minimize the window to a row of icons.
+- **Stat blocks on tokens** for D&D 5e (Open5e SRD), Pathfinder 2e (paste an Archives of Nethys link), Daggerheart (paste a link from the online SRD), or any other game with a generic stat block. Move, resize, or minimize the window to a row of icons.
 - **Secret notes on any token**, including a player's own token: they never see it.
 - **Map notes** for traps, hidden items and mechanisms, with Markdown, a "done" state, titles only the GM sees, and a searchable list.
 - **Real secrecy:** stat blocks and notes are encrypted with AES-GCM 256. The key stays in the GM's browser.

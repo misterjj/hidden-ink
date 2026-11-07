@@ -1,6 +1,7 @@
 import OBR, { buildImage, isImage } from "@owlbear-rodeo/sdk";
 import { LockedError, MissingKeyError, byteSize, isExported, reveal, seal } from "./crypto";
 import { currentLanguage, t } from "./i18n";
+import { labelWithHelp, wireHelp } from "./help";
 import { icon } from "./icons";
 import { escapeHtml } from "./manual";
 import { renderMarkdown } from "./markdown";
@@ -167,17 +168,18 @@ function renderEdit(type: NoteType, current?: MapNote, position?: { x: number; y
     <div class="window note">
       ${bar(type, noteTypeLabel(type))}
       <form class="pane" id="form">
+        <p class="field-caption">${labelWithHelp(t("notes.fieldType"), t("help.note.type"))}</p>
         <div class="types" role="group" aria-label="${t("notes.fieldType")}">
           ${NOTE_TYPE_IDS.map(
             (id) =>
               `<button type="button" class="note-type-${id}" data-type="${id}" aria-pressed="${id === type}"><img src="/notes/${id}.svg" alt="" />${escapeHtml(noteTypeLabel(id))}</button>`,
           ).join("")}
         </div>
-        <label>${t("notes.fieldTitle")}
+        <label>${labelWithHelp(t("notes.fieldTitle"), t("help.note.title"))}
           <input name="title" autocomplete="off" value="${escapeHtml(current?.title ?? "")}" placeholder="${escapeHtml(noteTypeLabel(type))}" />
         </label>
         <label class="note-grow">
-          <span>${t("notes.fieldText")} <small>${t("notes.markdownHint")}</small></span>
+          ${labelWithHelp(t("notes.fieldText"), t("help.note.text"))}
           <textarea name="text">${escapeHtml(current?.text ?? "")}</textarea>
         </label>
         <p class="error" id="error" hidden></p>
@@ -190,6 +192,7 @@ function renderEdit(type: NoteType, current?: MapNote, position?: { x: number; y
       </footer>
     </div>`;
   OBR.popover.setHeight(NOTE_POPOVER_ID, NOTE_MAX_HEIGHT);
+  wireHelp(app);
 
   const form = app.querySelector<HTMLFormElement>("#form")!;
   const error = app.querySelector<HTMLParagraphElement>("#error")!;
@@ -310,7 +313,7 @@ function renderTokenEdit(name: string, current: TokenNote | undefined, hasFiche:
       ${bar("token", t("tokenNote.title"), name)}
       <form class="pane" id="form">
         <label class="note-grow">
-          <span>${t("notes.fieldText")} <small>${t("notes.markdownHint")}</small></span>
+          ${labelWithHelp(t("notes.fieldText"), t("help.note.text"))}
           <textarea name="text" placeholder="${escapeHtml(t("tokenNote.placeholder"))}">${escapeHtml(current?.text ?? "")}</textarea>
         </label>
         <p class="error" id="error" hidden></p>
@@ -323,6 +326,7 @@ function renderTokenEdit(name: string, current: TokenNote | undefined, hasFiche:
       </footer>
     </div>`;
   OBR.popover.setHeight(NOTE_POPOVER_ID, NOTE_MAX_HEIGHT);
+  wireHelp(app);
 
   const form = app.querySelector<HTMLFormElement>("#form")!;
   const error = app.querySelector<HTMLParagraphElement>("#error")!;

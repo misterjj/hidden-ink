@@ -135,24 +135,23 @@ h2 {
 .loading { display: flex; align-items: center; gap: 8px; color: var(--muted); padding: 8px 2px; }
 
 /* --- Éditeur de fiche ---------------------------------------------------------------- */
-.choices { display: flex; flex-direction: column; gap: 6px; }
+.choices { display: flex; flex-direction: column; gap: 4px; }
+/* Un onglet par jeu, au-dessus des méthodes. */
+.systems { margin-bottom: 10px; }
+.systems button { white-space: nowrap; }
 .choice {
-  all: unset; box-sizing: border-box; display: flex; gap: 12px; align-items: center; padding: 10px 12px;
+  all: unset; box-sizing: border-box; display: flex; gap: 12px; align-items: center; padding: 8px 12px;
   border-radius: 8px; background: var(--surface); border: 1px solid transparent; cursor: pointer;
 }
 .choice:hover { background: var(--surface-hover); border-color: var(--line); }
 .choice:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 .choice .choice-icon {
-  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px;
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 8px;
   background: var(--accent-soft); color: var(--accent);
 }
 .choice span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .choice strong { font-size: 13px; }
 .choice small { color: var(--muted); font-size: 12px; }
-.tag {
-  font-style: normal; display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px; vertical-align: 1px;
-  background: var(--accent-soft); color: var(--accent); font-size: 10.5px; font-weight: 600;
-}
 .back-link { align-self: flex-start; margin: 10px 12px 0; }
 
 .results { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
@@ -181,6 +180,16 @@ h2 {
 .sheet table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
 .sheet td, .sheet th { border: 1px solid var(--paper-line); padding: 2px 6px; }
 .type { font-style: italic; }
+/* Traits Pathfinder : rareté, taille, type. */
+.tags { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 0 !important; }
+.tags span {
+  padding: 0 6px; border: 1px solid var(--red); border-radius: 3px; color: var(--red);
+  font: 600 11px/1.6 system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.03em;
+}
+/* Coût en actions : ◆, ◆◆, ◆◆◆, réaction, action libre. */
+.pf-action { color: var(--red); font-size: 0.85em; letter-spacing: -0.05em; white-space: nowrap; }
+.dh-kind { color: var(--red); font-style: italic; }
+.dh-kind::after { content: " —"; }
 .props { color: var(--red); }
 .props p { margin-bottom: 2px; }
 .abilities {
@@ -339,4 +348,99 @@ body:not(.minimized) .mini-tools, body:not(.minimized) .mini-panel { display: no
 .key-value {
   margin: 0; padding: 8px; border-radius: var(--radius); background: rgb(0 0 0 / 0.3);
   font: 12px/1.45 ui-monospace, Menlo, monospace; word-break: break-all; user-select: all; color: var(--text);
+}
+
+/* --- Saisies guidées Pathfinder 2e et Daggerheart ------------------------------------ */
+.row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.row4:has(> label:nth-child(5)) { grid-template-columns: repeat(5, 1fr); }
+.row4 input { min-width: 0; }
+.attack-row { grid-template-columns: 0.7fr 1.4fr 1.2fr 1.2fr; }
+.system-form h3, .rows-block h3 {
+  margin: 6px 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted);
+}
+.rows-block { display: flex; flex-direction: column; gap: 6px; }
+.rows { display: flex; flex-direction: column; gap: 6px; }
+.rows:empty { display: none; }
+/* Une ligne : nom, réglages et bouton de suppression, puis les champs longs en dessous. */
+.row-item {
+  display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center;
+  padding: 8px; border-radius: 8px; background: var(--surface);
+}
+.row-item.strike { grid-template-columns: auto 1fr 64px auto; }
+.row-item.feature-row { grid-template-columns: 1fr auto auto; }
+.row-item .wide, .row-item textarea { grid-column: 1 / -1; }
+.row-item.strike .wide { grid-column: span 2; }
+.row-item.strike .wide:last-of-type { grid-column: 3 / -1; }
+.row-item select { min-width: 0; }
+.row-item .short { text-align: center; }
+.remove-row { width: 28px; height: 28px; }
+.remove-row:hover { color: #ff8b7a; }
+.add-row { align-self: flex-start; }
+.dh-kind-toggle { margin-bottom: 2px; }
+
+/* --- Mise en page Pathfinder 2e -------------------------------------------------------- */
+[data-theme="pf2e"] {
+  --parchment: #fbf9f4; --red: #5d0000; --ink: #1d1d1b;
+  font: 14px/1.45 "Gill Sans", "Segoe UI", system-ui, sans-serif !important;
+}
+.pf2-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sheet .pf2-title h1 {
+  font: 700 20px/1.2 "Gill Sans", "Segoe UI", system-ui, sans-serif; font-variant: normal; text-transform: uppercase;
+  letter-spacing: 0.02em; color: var(--ink);
+}
+.pf2-title span { flex: none; font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: 0.03em; }
+[data-theme="pf2e"] .tags { gap: 0; margin: 6px 0 8px !important; }
+[data-theme="pf2e"] .tags span {
+  padding: 1px 7px; border: 2px solid #d8c483; border-radius: 0; margin-right: -2px;
+  background: #5d0000; color: #fff; font: 700 11px/1.5 "Gill Sans", "Segoe UI", system-ui, sans-serif;
+}
+[data-theme="pf2e"] .tags span.pf2-uncommon { background: #98513d; }
+[data-theme="pf2e"] .tags span.pf2-rare { background: #002664; }
+[data-theme="pf2e"] .tags span.pf2-unique { background: #54166e; }
+[data-theme="pf2e"] .tags span.pf2-size { background: #478c42; }
+[data-theme="pf2e"] .tags span.pf2-alignment { background: #4c5b7c; }
+[data-theme="pf2e"] hr { border-top: 1px solid var(--ink); margin: 6px 0; }
+.pf2-block p { margin: 0 0 3px; }
+.pf2-block ul { margin: 2px 0 4px; padding-left: 20px; }
+[data-theme="pf2e"] .pf-action { color: var(--ink); font-size: 0.8em; }
+[data-theme="pf2e"] h2 { color: var(--ink); border-color: var(--ink); font-family: inherit; font-variant: normal; }
+
+/* --- Mise en page Daggerheart ---------------------------------------------------------- */
+[data-theme="daggerheart"] {
+  --parchment: #f7f3ec; --red: #3d2a5c; --ink: #26211d; --dh-gold: #b8955a;
+  font: 14px/1.5 "Palatino Linotype", Palatino, Georgia, serif !important;
+}
+.sheet .dh-title {
+  font-variant: normal; text-transform: uppercase; letter-spacing: 0.06em; font-size: 22px; color: var(--red);
+}
+.dh-type { margin: 2px 0 6px !important; font-style: italic; font-weight: 600; color: #6a557f; }
+.dh-description { font-style: italic; }
+.dh-band {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 8px 0;
+  border-top: 2px solid var(--dh-gold); border-bottom: 2px solid var(--dh-gold); background: #efe6d4;
+}
+.dh-band div { display: flex; flex-direction: column; align-items: center; padding: 5px 4px; text-align: center; }
+.dh-band div + div { border-left: 1px solid rgb(184 149 90 / 0.6); }
+.dh-band span { font: 600 10.5px/1.3 system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: #6a557f; }
+.dh-band strong { font-size: 17px; color: var(--ink); }
+.sheet .dh-features {
+  margin-top: 12px; font: 700 13px/1.4 system-ui, sans-serif; font-variant: normal; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--red); border-bottom: 2px solid var(--dh-gold);
+}
+[data-theme="daggerheart"] .dh-kind { color: #6a557f; }
+[data-theme="daggerheart"] .props, [data-theme="daggerheart"] p b { color: var(--red); }
+
+/* --- « ? » d'aide et sa bulle ------------------------------------------------------- */
+.label-row { display: inline-flex; align-items: center; gap: 5px; }
+.help {
+  display: inline-grid; place-items: center; flex: none; width: 15px; height: 15px; border-radius: 50%;
+  border: 1px solid var(--field-line); color: var(--muted); font: 600 10px/1 system-ui, sans-serif; cursor: help;
+  text-transform: none; letter-spacing: 0;
+}
+.help:hover, .help:focus-visible { color: var(--text); border-color: var(--accent); outline: none; }
+.field-caption { margin: 0 0 -6px; color: var(--muted); font-size: 11.5px; font-weight: 500; }
+.tooltip {
+  position: fixed; z-index: 100; max-width: min(300px, calc(100vw - 16px)); padding: 7px 10px; border-radius: 8px;
+  background: #11131a; color: var(--text); border: 1px solid var(--line); box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+  font: 12px/1.45 system-ui, -apple-system, sans-serif; pointer-events: none; white-space: pre-line;
 }

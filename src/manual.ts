@@ -1,5 +1,5 @@
 import { t } from "./i18n";
-import type { ManualFiche, Statblock } from "./types";
+import type { GenericFiche, ManualFiche, Statblock } from "./types";
 
 /** FOR, DEX… ou STR, DEX…, dans l'ordre de la saisie. */
 export const abilityLabels = () => t("sheet.abilities").split(",");
@@ -112,19 +112,7 @@ export function manualToStatblock(fiche: ManualFiche): Statblock {
     { label: t("sheet.speed"), valueHtml: escapeHtml(fiche.speed) },
   ].filter((prop) => prop.valueHtml);
 
-  for (const raw of fiche.props.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    const separator = line.indexOf(":");
-    props.push(
-      separator > 0
-        ? {
-            label: escapeHtml(line.slice(0, separator).trim()),
-            valueHtml: escapeHtml(line.slice(separator + 1).trim()),
-          }
-        : { label: "", valueHtml: escapeHtml(line) },
-    );
-  }
+  props.push(...parseProps(fiche.props));
 
   const hasAbilities = fiche.abilities.some((score) => score.trim());
   return {
@@ -141,4 +129,58 @@ export function manualToStatblock(fiche: ManualFiche): Statblock {
     source: t("sheet.manualSource"),
     extrasHtml: "",
   };
+}
+
+/** « Libellé : valeur », une par ligne ; sans deux-points, la ligne est affichée telle quelle. */
+function parseProps(text: string): Statblock["props"] {
+  const props: Statblock["props"] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const separator = line.indexOf(":");
+    // Rubrique préremplie laissée vide : rien à afficher.
+    if (separator > 0 && !line.slice(separator + 1).trim()) continue;
+    props.push(
+      separator > 0
+        ? {
+            label: escapeHtml(line.slice(0, separator).trim()),
+            valueHtml: escapeHtml(line.slice(separator + 1).trim()),
+          }
+        : { label: "", valueHtml: escapeHtml(line) },
+    );
+  }
+  return props;
+}
+
+export function genericToStatblock(fiche: GenericFiche): Statblock {
+  return {
+    name: fiche.name,
+    type: fiche.type,
+    props: parseProps(fiche.props),
+    abilities: [],
+    sections: parseManualBody(fiche.body),
+    source: t("sheet.genericSource"),
+    extrasHtml: "",
+  };
+}
+
+/** Copie une fiche (Pathfinder, Daggerheart…) en fiche libre, pour pouvoir la modifier. */
+export function statblockToGeneric(statblock: Statblock): GenericFiche {
+  const props = [
+    ...(statblock.tags?.length ? [`Traits : ${statblock.tags.join(", ")}`] : []),
+    ...(statblock.abilities.length
+      ? [statblock.abilities.map((ability) => `${ability.label} ${ability.score}${ability.mod ? ` (${ability.mod})` : ""}`).join(", ")]
+      : []),
+    ...statblock.props.map((prop) => {
+      const value = htmlText(prop.valueHtml);
+      return prop.label ? `${htmlText(prop.label)} : ${value}` : value;
+    }),
+  ];
+  if (statblock.source) props.push(`Source : ${statblock.source}`);
+  const body = statblock.sections.flatMap((section) => [
+    ...(section.title ? [`# ${section.title}`] : []),
+    // « Nom. Description » : le nom reste en gras une fois la fiche enregistrée.
+    ...section.entries.flatMap((entry) => htmlLines(entry.replace(/^<p>(?:<strong><em>|<b>)([^<]+)(?:<\/em><\/strong>|<\/b>)\s*/, "<p>$1. "))),
+  ]);
+  return { name: statblock.name, type: statblock.type, props: props.join("\n"), body: body.join("\n") };
 }

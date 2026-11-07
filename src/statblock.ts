@@ -1,7 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { normalizeFicheUrl } from "../shared/aidedd";
+import { ficheSite, normalizeFicheUrl } from "../shared/fiche-url";
 import { reveal } from "./crypto";
-import { FicheError, loadFromAidedd, resolveFiche } from "./data";
+import { FicheError, loadFromLink, resolveFiche } from "./data";
 import { currentLanguage, t } from "./i18n";
 import { icon } from "./icons";
 import { escapeHtml } from "./manual";
@@ -406,6 +406,10 @@ OBR.onReady(async () => {
   try {
     const statblock = await resolveFiche(fiche);
     sheet.innerHTML = statblockHtml(statblock);
+    // Mise en page du jeu de la fiche, aussi pour le détail des pictos de la fenêtre réduite.
+    const theme = statblock.system ?? "dnd";
+    sheet.dataset.theme = theme;
+    document.querySelector<HTMLElement>("#mini-panel")!.dataset.theme = theme;
     renderTools(statblockParts(statblock));
     document.querySelector<HTMLElement>(".title")!.textContent = statblock.name;
     sheet.scrollTop = savedScroll;
@@ -414,8 +418,17 @@ OBR.onReady(async () => {
     sheet.innerHTML = errorHtml(
       error instanceof FicheError ? error.message : t("window.error"),
     );
-    document.querySelector<HTMLButtonElement>("#fill-manual")!.onclick = () =>
-      send({ type: "edit", itemId, tab: "manual" });
+    // Fiche d'un autre jeu que D&D : la fiche libre convient mieux que la saisie D&D.
+    const site = fiche.kind === "link" ? ficheSite(normalizeFicheUrl(fiche.url) ?? "") : "aidedd";
+    const tab =
+      fiche.kind === "generic" || fiche.kind === "pf2e" || fiche.kind === "daggerheart"
+        ? fiche.kind
+        : site === "aon"
+          ? "pf2e"
+          : site === "daggerheart"
+            ? "daggerheart"
+            : "manual";
+    document.querySelector<HTMLButtonElement>("#fill-manual")!.onclick = () => send({ type: "edit", itemId, tab });
   }
 });
 
@@ -423,7 +436,7 @@ OBR.onReady(async () => {
 if (import.meta.env.DEV && !OBR.isAvailable) {
   app.innerHTML = windowHtml(`<p class="hint">${t("common.loading")}</p>`, "Preview");
   const sheet = sheetElement()!;
-  loadFromAidedd(params.get("preview") ?? "")
+  loadFromLink(params.get("preview") ?? "")
     .then((statblock) => (sheet.innerHTML = statblockHtml(statblock)))
     .catch((error) => (sheet.innerHTML = errorHtml(error.message)));
 }

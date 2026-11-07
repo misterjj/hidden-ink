@@ -60,13 +60,22 @@ export interface Ability {
   save?: string;
 }
 
+/** Jeu de la fiche : décide de sa mise en page. Absent : D&D. */
+export type SheetSystem = "dnd" | "pf2e" | "daggerheart";
+
+/** Bloc d'une fiche Pathfinder : haut, défense, puis vitesse et attaques. */
+export type SheetPlace = "top" | "defense" | "offense";
+
 /** Fiche prête à afficher. Tous les champs *Html sont déjà assainis. */
 export interface Statblock {
+  system?: SheetSystem;
   name: string;
   type: string;
+  /** Traits affichés en pastilles sous le type (Pathfinder 2e), en texte brut. */
+  tags?: string[];
   props: { label: string; valueHtml: string }[];
   abilities: Ability[];
-  sections: { title: string; entries: string[] }[];
+  sections: { title: string; entries: string[]; place?: SheetPlace }[];
   source: string;
   extrasHtml: string;
 }
@@ -86,14 +95,90 @@ export interface ManualFiche {
   body: string;
 }
 
+/** Fiche libre, pour n'importe quel jeu : du texte brut, échappé à l'affichage. */
+export interface GenericFiche {
+  name: string;
+  /** Sous-titre : type, niveau, rôle… */
+  type: string;
+  /** Une ligne par propriété, « Libellé : valeur » */
+  props: string;
+  /** Capacités, voir parseManualBody */
+  body: string;
+}
+
+export type ActionCost = "" | "1" | "2" | "3" | "reaction" | "free";
+export type Pf2eRarity = "common" | "uncommon" | "rare" | "unique";
+
+/** Saisie guidée d'une créature Pathfinder 2e : du texte brut, échappé à l'affichage. */
+export interface Pf2eFiche {
+  name: string;
+  level: string;
+  rarity: Pf2eRarity;
+  size: string;
+  /** Traits séparés par des virgules */
+  traits: string;
+  perception: string;
+  languages: string;
+  skills: string;
+  /** Modificateurs FOR, DEX, CON, INT, SAG, CHA */
+  attributes: string[];
+  items: string;
+  ac: string;
+  /** Vigueur, Réflexes, Volonté */
+  saves: string[];
+  hp: string;
+  immunities: string;
+  weaknesses: string;
+  resistances: string;
+  speed: string;
+  strikes: { ranged: boolean; name: string; bonus: string; traits: string; damage: string }[];
+  /** Une ligne par liste de sorts */
+  spells: string;
+  abilities: { name: string; actions: ActionCost; traits: string; text: string; place: SheetPlace }[];
+}
+
+export type DaggerheartFeatureKind = "Action" | "Reaction" | "Passive";
+
+/** Saisie guidée d'un adversaire ou d'un environnement Daggerheart. */
+export interface DaggerheartFiche {
+  name: string;
+  environment: boolean;
+  tier: string;
+  type: string;
+  description: string;
+  /** Motivations et tactiques, ou pulsions d'un environnement */
+  motives: string;
+  difficulty: string;
+  major: string;
+  severe: string;
+  hp: string;
+  stress: string;
+  atk: string;
+  weapon: string;
+  range: string;
+  damage: string;
+  experience: string;
+  /** Adversaires possibles d'un environnement */
+  adversaries: string;
+  features: { name: string; kind: DaggerheartFeatureKind; text: string }[];
+}
+
 /** Ce qui est stocké sur le token, chiffré (voir crypto.ts). */
 export type TokenFiche =
+  /** Lien d'une fiche AideDD, Archives of Nethys ou SRD Daggerheart (voir shared/fiche-url.ts). */
   | { kind: "link"; url: string }
   | { kind: "manual"; fiche: ManualFiche }
   /** Clé Open5e, par exemple « srd_goblin ». */
-  | { kind: "open5e"; key: string };
+  | { kind: "open5e"; key: string }
+  | { kind: "generic"; fiche: GenericFiche }
+  | { kind: "pf2e"; fiche: Pf2eFiche }
+  | { kind: "daggerheart"; fiche: DaggerheartFiche };
 
-export type EditorTab = "choice" | "open5e" | "link" | "manual";
+/**
+ * « link » colle un lien AideDD, « aon » et « dhsrd » un lien de ces sites.
+ * « manual », « pf2e » et « daggerheart » sont les saisies guidées de chaque jeu.
+ */
+export type EditorTab = "choice" | "open5e" | "link" | "aon" | "dhsrd" | "manual" | "pf2e" | "daggerheart" | "generic";
 
 /** Note secrète d'un token : du markdown. */
 export interface TokenNote {

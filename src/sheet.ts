@@ -1,4 +1,4 @@
-import { t } from "./i18n";
+import { currentLanguage, t } from "./i18n";
 import { icon as uiIcon } from "./icons";
 import { escapeHtml } from "./manual";
 import type { Statblock } from "./types";
@@ -17,10 +17,18 @@ function abilitiesHtml(statblock: Statblock): string {
     .join("")}</div>`;
 }
 
+/** Fiche dans la mise en page de son jeu : D&D (par défaut), Pathfinder 2e ou Daggerheart. */
 export function statblockHtml(statblock: Statblock): string {
+  if (statblock.system === "pf2e") return pf2eHtml(statblock);
+  if (statblock.system === "daggerheart") return daggerheartHtml(statblock);
+  return dndHtml(statblock);
+}
+
+function dndHtml(statblock: Statblock): string {
   return `
     <h1>${escapeHtml(statblock.name)}</h1>
     ${statblock.type ? `<p class="type">${escapeHtml(statblock.type)}</p>` : ""}
+    ${statblock.tags?.length ? `<p class="tags">${statblock.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</p>` : ""}
     <hr />
     ${abilitiesHtml(statblock)}
     <div class="props">${statblock.props
@@ -42,6 +50,97 @@ export function statblockHtml(statblock: Statblock): string {
     ${statblock.source ? `<p class="source">${escapeHtml(statblock.source)}</p>` : ""}`;
 }
 
+const propLine = (prop: Statblock["props"][number]) =>
+  `<p>${prop.label ? `<b>${prop.label}</b> ` : ""}${prop.valueHtml}</p>`;
+
+const sourceHtml = (statblock: Statblock) =>
+  statblock.source ? `<p class="source">${escapeHtml(statblock.source)}</p>` : "";
+
+// --- Pathfinder 2e : nom et niveau sur une ligne, traits en pastilles, blocs séparés par des filets.
+
+const PF2_RARITY: Record<string, string> = {
+  uncommon: "uncommon", "peu commun": "uncommon", "peu commune": "uncommon", rare: "rare", unique: "unique",
+};
+const PF2_SIZE = /^(tiny|small|medium|large|huge|gargantuan|très petite?|petite?|moyenne?|grande?|très grande?|gigantesque)$/i;
+const PF2_ALIGNMENT = /^(LG|NG|CG|LN|N|CN|LE|NE|CE)$/;
+
+function pf2TagClass(tag: string) {
+  const rarity = PF2_RARITY[tag.toLowerCase()];
+  if (rarity) return `pf2-${rarity}`;
+  if (PF2_SIZE.test(tag)) return "pf2-size";
+  if (PF2_ALIGNMENT.test(tag)) return "pf2-alignment";
+  return "";
+}
+
+const PF2_DEFENSE_START = /^(ac|ca)$/i;
+const PF2_OFFENSE_START = /^(speed|vitesse)$/i;
+
+function pf2eHtml(statblock: Statblock): string {
+  // Les propriétés suivent l'ordre de la fiche : le haut, puis la défense dès la CA, puis la vitesse.
+  const blocks: Record<"top" | "defense" | "offense", string[]> = { top: [], defense: [], offense: [] };
+  let block: keyof typeof blocks = "top";
+  for (const prop of statblock.props) {
+    const label = prop.label.replace(/<[^>]+>/g, "").trim();
+    if (PF2_DEFENSE_START.test(label)) block = "defense";
+    if (PF2_OFFENSE_START.test(label)) block = "offense";
+    blocks[block].push(propLine(prop));
+  }
+  if (statblock.abilities.length) {
+    const line = `<p>${statblock.abilities
+      .map((ability) => `<b>${escapeHtml(ability.label.charAt(0) + ability.label.slice(1).toLowerCase())}</b> ${escapeHtml(ability.score)}`)
+      .join(", ")}</p>`;
+    // Après les compétences, comme dans les livres.
+    const skills = statblock.props.findIndex((prop) => /^(skills|compétences)$/i.test(prop.label));
+    const index = skills >= 0 && skills < blocks.top.length ? skills + 1 : blocks.top.length;
+    blocks.top.splice(index, 0, line);
+  }
+  for (const section of statblock.sections) {
+    const place = section.place ?? (section.title ? "offense" : "top");
+    blocks[place].push(...section.entries);
+  }
+  const tags = (statblock.tags ?? [])
+    .map((tag) => `<span class="${pf2TagClass(tag)}">${escapeHtml(tag)}</span>`)
+    .join("");
+  return `
+    <div class="pf2-title"><h1>${escapeHtml(statblock.name)}</h1>${statblock.type ? `<span>${escapeHtml(statblock.type)}</span>` : ""}</div>
+    ${tags ? `<p class="tags">${tags}</p>` : ""}
+    <div class="pf2-block">${blocks.top.join("")}</div>
+    ${blocks.defense.length ? `<hr /><div class="pf2-block">${blocks.defense.join("")}</div>` : ""}
+    ${blocks.offense.length ? `<hr /><div class="pf2-block">${blocks.offense.join("")}</div>` : ""}
+    ${statblock.extrasHtml ? `<details><summary>${t("sheet.description")}</summary>${statblock.extrasHtml}</details>` : ""}
+    ${sourceHtml(statblock)}`;
+}
+
+// --- Daggerheart : nom en capitales, bandeau Difficulté / Seuils / PV / Stress, puis les capacités.
+
+const DH_BAND = /^(difficult|thresholds|seuils|hp|pv|stress)/i;
+
+function daggerheartHtml(statblock: Statblock): string {
+  const plainLabel = (prop: Statblock["props"][number]) => prop.label.replace(/<[^>]+>/g, "").trim();
+  const description = statblock.props.filter((prop) => !prop.label);
+  const band = statblock.props.filter((prop) => DH_BAND.test(plainLabel(prop)));
+  const others = statblock.props.filter((prop) => prop.label && !DH_BAND.test(plainLabel(prop)));
+  const [motives, ...rest] = others.length && /motiv|impuls|pulsion/i.test(plainLabel(others[0])) ? others : [undefined, ...others];
+  // « Libellé : » en français, « Label: » en anglais.
+  const colon = currentLanguage() === "fr" ? "\u00a0:" : ":";
+  const line = (prop: Statblock["props"][number]) => `<p><b>${prop.label}${colon}</b> ${prop.valueHtml}</p>`;
+  return `
+    <h1 class="dh-title">${escapeHtml(statblock.name)}</h1>
+    ${statblock.type ? `<p class="dh-type">${escapeHtml(statblock.type)}</p>` : ""}
+    ${description.map((prop) => `<p class="dh-description">${prop.valueHtml}</p>`).join("")}
+    ${motives ? line(motives) : ""}
+    ${
+      band.length
+        ? `<div class="dh-band">${band.map((prop) => `<div><span>${prop.label}</span><strong>${prop.valueHtml}</strong></div>`).join("")}</div>`
+        : ""
+    }
+    ${rest.filter(Boolean).map((prop) => line(prop!)).join("")}
+    ${statblock.sections
+      .map((section) => `<section>${section.title ? `<h2 class="dh-features">${escapeHtml(section.title)}</h2>` : ""}${section.entries.join("")}</section>`)
+      .join("")}
+    ${sourceHtml(statblock)}`;
+}
+
 const icon = (paths: string) =>
   `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
@@ -57,6 +156,7 @@ const ICONS = {
   legendary: icon('<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/>'),
   other: icon('<path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/>'),
   description: icon('<path d="M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 0 2 0"/>'),
+  spells: icon('<path d="M12 3l1.8 4.7L18 9l-4.2 1.3L12 15l-1.8-4.7L6 9l4.2-1.3z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/>'),
 };
 
 export interface Part {
@@ -65,11 +165,15 @@ export interface Part {
   html: string;
 }
 
-const DEFENSE = /classe d'armure|armor class|^ac$|^ca$|points de vie|hit points|^hp$|^pv$|vitesse|^speed$|initiative/i;
-const RESIST = /résistance|immunité|vulnérabilité|resistance|immunit|vulnerab/i;
+const DEFENSE =
+  /classe d'armure|armor class|^ac$|^ca$|points de vie|hit points|^hp$|^pv$|vitesse|^speed$|initiative|^saves$|^jets de sauvegarde$|difficult|seuils|thresholds|^stress$/i;
+const RESIST = /résistance|immunité|vulnérabilité|resistance|immunit|vulnerab|faiblesse|weakness/i;
 
 function sectionIcon(title: string): string {
-  if (/^(traits?|capacités?)$/i.test(title)) return ICONS.traits;
+  if (/^(traits?|capacités?|abilities|features)$/i.test(title)) return ICONS.traits;
+  if (/sorts|spells/i.test(title)) return ICONS.spells;
+  if (/défensi|defensi/i.test(title)) return ICONS.defense;
+  if (/frappes|strikes|offensi/i.test(title)) return ICONS.action;
   if (/légendaire|legendary/i.test(title)) return ICONS.legendary;
   if (/bonus/i.test(title)) return ICONS.bonus;
   if (/réaction|reaction/i.test(title)) return ICONS.reaction;

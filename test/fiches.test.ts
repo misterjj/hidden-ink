@@ -15,11 +15,20 @@ import {
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { setLanguage } from "../src/i18n";
-import { handleFicheRequest, normalizeFicheUrl } from "../shared/aidedd";
+import { handleFicheRequest, normalizeFicheUrl } from "../shared/fiche-url";
 import { manualToStatblock, parseManualBody, statblockToManual } from "../src/manual";
 import { markdownPreview, renderMarkdown } from "../src/markdown";
 import { parseStatblock } from "../src/parser";
-import { statblockParts } from "../src/sheet";
+import { statblockHtml, statblockParts } from "../src/sheet";
+import {
+  daggerheartToStatblock,
+  emptyDaggerheart,
+  emptyPf2e,
+  miniMarkdown,
+  pf2eToStatblock,
+  statblockToDaggerheart,
+  statblockToPf2e,
+} from "../src/systems";
 
 setLanguage("fr");
 
@@ -141,6 +150,18 @@ describe("normalizeFicheUrl", () => {
     ["www.aidedd.org/monster/goblin-warrior", "https://www.aidedd.org/monster/goblin-warrior"],
     ["https://www.aidedd.org/monster/fr/mimique", "https://www.aidedd.org/monster/fr/mimique"],
     ["aidedd.org/monster/es/mimeto/", "https://www.aidedd.org/monster/es/mimeto"],
+    ["https://2e.aonprd.com/Monsters.aspx?ID=3330", "https://2e.aonprd.com/Monsters.aspx?ID=3330"],
+    ["2e.aonprd.com/Monsters.aspx?ID=2750&Elite=true&NoRedirect=1", "https://2e.aonprd.com/Monsters.aspx?ID=2750&Elite=true"],
+    ["https://2e.aonprd.com/monsters.aspx?ID=12&Weak=true", "https://2e.aonprd.com/Monsters.aspx?ID=12&Weak=true"],
+    ["https://seansbox.github.io/daggerheart-srd/adversaries/Bear/", "https://seansbox.github.io/daggerheart-srd/adversaries/Bear/"],
+    [
+      "https://seansbox.github.io/daggerheart-srd/adversaries/Volcanic%20Dragon:%20Ashen%20Tyrant",
+      "https://seansbox.github.io/daggerheart-srd/adversaries/Volcanic%20Dragon%3A%20Ashen%20Tyrant/",
+    ],
+    [
+      "seansbox.github.io/daggerheart-srd/environments/Abandoned Grove/",
+      "https://seansbox.github.io/daggerheart-srd/environments/Abandoned%20Grove/",
+    ],
   ])("accepte %s", (input, expected) => {
     expect(normalizeFicheUrl(input)).toBe(expected);
   });
@@ -157,6 +178,12 @@ describe("normalizeFicheUrl", () => {
     "https://www.aidedd.org/monster/fr/../../admin",
     "https://www.aidedd.org/monster/fr/mimique/autre",
     "https://www.aidedd.org/monster/FRA/mimique",
+    "https://2e.aonprd.com/Spells.aspx?ID=12",
+    "https://2e.aonprd.com/Monsters.aspx?ID=abc",
+    "https://2e.aonprd.com.evil.test/Monsters.aspx?ID=1",
+    "https://seansbox.github.io/autre-site/adversaries/Bear/",
+    "https://seansbox.github.io/daggerheart-srd/adversaries/..%2F..%2Fx/",
+    "https://seansbox.github.io/daggerheart-srd/classes/Bard/",
   ])("refuse %s", (input) => {
     expect(normalizeFicheUrl(input)).toBeNull();
   });
@@ -181,6 +208,12 @@ describe("relais", () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/plain");
+  });
+
+  it("demande la version exacte à Archives of Nethys, sans redirection vers le remaster", async () => {
+    const fetchImpl = vi.fn(async () => new Response("<h1>ok</h1>"));
+    await handleFicheRequest(request("https://2e.aonprd.com/Monsters.aspx?ID=1"), fetchImpl as unknown as typeof fetch);
+    expect(fetchImpl).toHaveBeenCalledWith("https://2e.aonprd.com/Monsters.aspx?ID=1&NoRedirect=1", expect.anything());
   });
 
   it("signale AideDD indisponible : panne réseau, erreur, redirection", async () => {
@@ -459,5 +492,183 @@ describe("manifest", () => {
   it("respecte la limite de description d'Owlbear", () => {
     const manifest = JSON.parse(readFileSync("public/manifest.json", "utf8"));
     expect(manifest.description.length).toBeLessThanOrEqual(128);
+  });
+});
+
+describe("Archives of Nethys", () => {
+  const aon = (name: string, url = "https://2e.aonprd.com/Monsters.aspx?ID=3330") =>
+    parseStatblock(fixture(name), url)!;
+
+  it("lit le nom, le niveau, les traits et les propriétés", () => {
+    setLanguage("fr");
+    const glorkus = aon("aon-glorkus");
+    expect(glorkus.name).toBe("Glorkus");
+    expect(glorkus.type).toBe("Creature 4");
+    expect(glorkus.tags).toEqual(["Unique", "CE", "Small", "Ghoul", "Undead"]);
+    expect(glorkus.source).toBe("Archives of Nethys · Pathfinder #200: Seven Dooms for Sandpoint pg. 15");
+    const props = Object.fromEntries(glorkus.props.map((prop) => [prop.label, prop.valueHtml]));
+    expect(props.Perception).toBe("+12; darkvision");
+    expect(props.AC).toContain("21; <b>Fort</b> +10");
+    expect(props.HP).toContain("59 (negative healing)");
+    expect(props.Speed).toBe("30 feet, burrow 5 feet");
+    expect(glorkus.props.find((prop) => !prop.label)?.valueHtml).toBe("<em>Male goblin ghoul cleric of Kabriri</em>");
+    expect(glorkus.abilities.map((ability) => `${ability.label} ${ability.score}`)).toEqual([
+      "STR +2", "DEX +4", "CON +2", "INT +1", "WIS +4", "CHA +3",
+    ]);
+  });
+
+  it("range frappes, sorts et capacités, sans liens vers le site", () => {
+    setLanguage("fr");
+    const glorkus = aon("aon-glorkus");
+    const actions = glorkus.sections.find((section) => section.title === "Actions")!.entries.join("");
+    expect(actions).toContain('<b>Melee</b> <span class="pf-action">◆</span> jaws +12');
+    expect(actions).toContain("<b>Divine Spells Prepared</b> DC 21, attack +13");
+    expect(actions).toContain("<b>Swift Leap</b>");
+    expect(actions).not.toContain("<a");
+    expect(actions).not.toContain("Load Spell Descriptions");
+  });
+
+  it("garde une capacité sans retrait et les défenses d'une créature simple", () => {
+    setLanguage("en");
+    const minion = aon("aon-2750", "https://2e.aonprd.com/Monsters.aspx?ID=2750");
+    expect(minion.name).toBe("Phantasmal Minion");
+    expect(minion.sections[0].entries[0]).toContain("<b>Force Body</b>");
+    const props = minion.props.map((prop) => prop.label);
+    expect(props).toEqual(["Recall Knowledge", "Perception", "Languages", "Skills", "AC", "HP", "Speed"]);
+    expect(statblockParts(minion)[0].html).toContain("fly 30 feet");
+  });
+});
+
+describe("SRD Daggerheart", () => {
+  const dh = (name: string, url: string) => parseStatblock(fixture(name), url)!;
+
+  it("lit un adversaire", () => {
+    const bear = dh("daggerheart-bear", "https://seansbox.github.io/daggerheart-srd/adversaries/Bear/");
+    expect(bear.name).toBe("Bear");
+    expect(bear.type).toBe("Tier 1 Bruiser");
+    const props = Object.fromEntries(bear.props.map((prop) => [prop.label, prop.valueHtml]));
+    expect(props[""]).toBe("<em>A large bear with thick fur and powerful claws.</em>");
+    expect(props.Difficulty).toBe("14");
+    expect(props.Thresholds).toBe("9/17");
+    expect(props.HP).toBe("7");
+    expect(props.ATK).toBe("+1 | Claws: Melee | 1d8+3 phy");
+    const [force, bite] = bear.sections[0].entries;
+    expect(bear.sections[0].title).toBe("Features");
+    expect(force).toBe(
+      '<p><strong><em>Overwhelming Force</em></strong> <span class="dh-kind">Passive</span> Targets who mark HP from the Bear\'s standard attack are knocked back to Very Close range.</p>',
+    );
+    expect(bite).toContain("<strong>Mark a Stress</strong>");
+  });
+
+  it("lit un environnement, listes comprises", () => {
+    const grove = dh("daggerheart-grove", "https://seansbox.github.io/daggerheart-srd/environments/Abandoned%20Grove/");
+    expect(grove.type).toBe("Tier 1 Exploration");
+    expect(grove.props.map((prop) => prop.label)).toEqual(["", "Impulses", "Difficulty", "Potential Adversaries"]);
+    const battlefield = grove.sections[0].entries[0];
+    expect(battlefield).toContain("<li>A moss-covered tree trunk is actually the corpse of a treant.</li>");
+  });
+});
+
+describe("saisies guidées Pathfinder 2e et Daggerheart", () => {
+  it("échappe le texte saisi, garde le gras et les listes", () => {
+    expect(miniMarkdown("**Effet** <img src=x onerror=alert(1)>\n- un\n- deux")).toEqual([
+      "<p><b>Effet</b> &lt;img src=x onerror=alert(1)&gt;</p>",
+      "<ul><li>un</li><li>deux</li></ul>",
+    ]);
+  });
+
+  it("met une créature Pathfinder en page comme dans les livres", () => {
+    setLanguage("fr");
+    const fiche = {
+      ...emptyPf2e("Gardien"),
+      level: "5",
+      rarity: "uncommon" as const,
+      size: "large",
+      traits: "mort-vivant",
+      attributes: ["5", "+1", "+3", "-1", "+2", "+1"],
+      ac: "22",
+      saves: ["14", "+9", "+12"],
+      hp: "75",
+      immunities: "poison",
+      speed: "7,5 m",
+      strikes: [{ ranged: false, name: "griffe", bonus: "14", traits: "agile", damage: "1d6+8 tranchants" }],
+      abilities: [{ name: "Riposte", actions: "reaction" as const, traits: "", text: "**Déclencheur** Raté.", place: "defense" as const }],
+    };
+    const sheet = pf2eToStatblock(fiche);
+    expect(sheet.system).toBe("pf2e");
+    expect(sheet.type).toBe("Créature 5");
+    expect(sheet.tags).toEqual(["Peu commune", "Grande", "mort-vivant"]);
+    const props = Object.fromEntries(sheet.props.map((prop) => [prop.label, prop.valueHtml]));
+    expect(props.CA).toBe("22; <b>Vig</b> +14, <b>Réf</b> +9, <b>Vol</b> +12");
+    expect(props.PV).toBe("75; <b>Immunités</b> poison");
+    expect(sheet.abilities[0]).toEqual({ label: "For", score: "+5", mod: "" });
+    const html = statblockHtml(sheet);
+    expect(html).toContain('<div class="pf2-title"><h1>Gardien</h1><span>Créature 5</span></div>');
+    expect(html).toContain('<span class="pf2-uncommon">Peu commune</span>');
+    expect(html).toContain('<b>Corps à corps</b> <span class="pf-action">◆</span> griffe +14 (agile), <b>Dégâts</b> 1d6+8 tranchants');
+    expect(html).toContain('<p><b>Riposte</b> <span class="pf-action">⤾</span> <b>Déclencheur</b> Raté.</p>');
+    // Défense puis attaque, séparées par des filets.
+    expect(html.indexOf("Riposte")).toBeLessThan(html.indexOf("Vitesse"));
+  });
+
+  it("recopie une fiche Archives of Nethys dans la saisie guidée", () => {
+    setLanguage("fr");
+    const fiche = statblockToPf2e(parseStatblock(fixture("aon-glorkus"), "https://2e.aonprd.com/Monsters.aspx?ID=3330")!);
+    expect(fiche).toMatchObject({
+      name: "Glorkus",
+      level: "4",
+      rarity: "unique",
+      size: "small",
+      traits: "Ghoul, Undead",
+      perception: "+12; darkvision",
+      ac: "21",
+      saves: ["+10", "+10", "+12"],
+      hp: "59 (negative healing)",
+      immunities: "death effects, disease, paralyzed, poison, unconscious",
+      speed: "30 feet, burrow 5 feet",
+    });
+    expect(fiche.attributes).toEqual(["+2", "+4", "+2", "+1", "+4", "+3"]);
+    expect(fiche.strikes[0]).toEqual({ ranged: false, name: "jaws", bonus: "+12", traits: "finesse", damage: "1d6+2 piercing plus ghoul fever and paralysis" });
+    expect(fiche.spells).toContain("**Divine Spells Prepared** DC 21, attack +13");
+    const leap = fiche.abilities.find((ability) => ability.name === "Swift Leap")!;
+    expect(leap).toMatchObject({ actions: "1", traits: "move", place: "offense" });
+  });
+
+  it("met un adversaire Daggerheart en page, avec le bandeau de statistiques", () => {
+    setLanguage("fr");
+    const sheet = daggerheartToStatblock({
+      ...emptyDaggerheart("Gardien de pierre"),
+      tier: "2",
+      type: "Bruiser",
+      description: "Un colosse.",
+      difficulty: "15",
+      major: "13",
+      severe: "24",
+      hp: "8",
+      stress: "3",
+      atk: "3",
+      weapon: "Poings",
+      range: "Very Close",
+      damage: "2d10+4 phy",
+      features: [{ name: "Peau de roche", kind: "Passive", text: "Moitié des dégâts." }],
+    });
+    const html = statblockHtml(sheet);
+    expect(sheet.type).toBe("Palier 2 Bruiser");
+    expect(html).toContain('<div class="dh-band"><div><span>Difficulté</span><strong>15</strong></div><div><span>Seuils</span><strong>13/24</strong></div>');
+    expect(html).toContain("<b>Attaque :</b> +3 | Poings: Very Close | 2d10+4 phy");
+    expect(html).toContain('<strong><em>Peau de roche</em></strong> <span class="dh-kind">Passif</span> Moitié des dégâts.');
+  });
+
+  it("recopie une fiche du SRD Daggerheart dans la saisie guidée", () => {
+    const bear = statblockToDaggerheart(parseStatblock(fixture("daggerheart-bear"), "https://seansbox.github.io/daggerheart-srd/adversaries/Bear/")!);
+    expect(bear).toMatchObject({
+      environment: false, tier: "1", type: "Bruiser", difficulty: "14", major: "9", severe: "17", hp: "7", stress: "2",
+      atk: "+1", weapon: "Claws", range: "Melee", damage: "1d8+3 phy",
+    });
+    expect(bear.features[1]).toMatchObject({ name: "Bite", kind: "Action" });
+    expect(bear.features[1].text).toContain("**Mark a Stress**");
+    const grove = statblockToDaggerheart(parseStatblock(fixture("daggerheart-grove"), "https://seansbox.github.io/daggerheart-srd/environments/Abandoned%20Grove/")!);
+    expect(grove).toMatchObject({ environment: true, type: "Exploration", difficulty: "11" });
+    expect(grove.features[0].text).toContain("- A moss-covered tree trunk is actually the corpse of a treant.");
   });
 });
