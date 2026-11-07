@@ -1,58 +1,46 @@
-# Hidden Ink — fiches de monstres et notes pour Owlbear Rodeo
+# Hidden Ink for Owlbear Rodeo
 
-Attache une fiche de monstre à un token, dans une fenêtre réservée au MJ.
-La fiche vient d'un lien AideDD ou d'une saisie à la main.
+**Secret GM notes and stat blocks on your tokens and maps.** Everything the GM writes is encrypted in their
+browser before it reaches the scene: players cannot read it, not even with their browser's developer tools.
 
-## Utilisation
+*Version française plus bas.*
 
-1. Clic droit sur un token, puis **Ajouter une fiche de monstre**.
-2. Choisis **Lien AideDD** (colle le lien) ou **Saisie à la main**.
-3. Ensuite, clic droit puis **Voir la fiche de monstre**.
+## Features
 
-Dans la fenêtre :
+- **Stat blocks on tokens:** search the SRD with [Open5e](https://open5e.com), or write one by hand.
+  The window can be moved, resized, and minimized to a row of icons.
+- **Secret notes on any token**, including a player's own token: they never see it.
+- **Map notes** for traps, hidden items and mechanisms: Markdown, a "done" state, titles shown only to the GM,
+  and a list with search and filters.
+- **Real secrecy:** stat blocks and notes are encrypted with AES-GCM 256. The key stays in the GM's browser.
+- **English and French**, following the browser's language.
 
-- la barre rouge sert à la déplacer : un cadre rouge suit la souris sur la carte, puis la fenêtre s'y pose ;
-- le coin en bas à droite sert à la redimensionner en direct ;
-- le bouton `–` la réduit à une ligne de pictos, un par partie de la fiche ; survoler un picto affiche cette partie ;
-- le bouton `▢` la remet en grand ;
-- le crayon permet de modifier la fiche, de changer de méthode ou de retirer la fiche.
+## Usage
 
-Pour ajuster un monstre AideDD (plus de PV, une attaque en moins…), clique sur le crayon puis sur
-**Adapter** : la fiche est recopiée dans la saisie à la main, et le token garde son lien tant que tu
-n'enregistres pas. La copie n'a plus de lien vers AideDD ni vers les sorts, et reste limitée à 12 ko.
+**Stat block:** right-click a token, then **Add a stat block**. Search Open5e, or write it by hand.
+**Adapt** copies an Open5e stat block into the manual form so you can change it.
 
-Liens acceptés :
+**Secret note:** right-click any token, then **Add a secret note**. A small envelope marks tokens that have one,
+on the GM's screen only.
 
-- `https://www.aidedd.org/dnd/monstres.php?vf=tertre-errant`
-- `https://www.aidedd.org/dnd/monstres.php?vo=shambling-mound`
-- `https://www.aidedd.org/monster/goblin-warrior`
-- `https://www.aidedd.org/monster/fr/mimique`
+**Map notes:** pick the **Map notes** tool, click the map, choose a type, write, then **Save**
+(or `Ctrl`/`Cmd` + `Enter`). Click a note with the normal tool to read it. The tool also has the notes list,
+a button to show or hide titles, and the settings.
 
-## Notes de carte
+## Your encryption key
 
-Pour les pièges, les objets cachés et les mécaniques spéciales.
+The key is created with your first note and kept in this browser. **Export it** from the settings (gear icon in
+the Map notes tool) and keep it somewhere safe:
 
-**En préparation :**
+- without it, a cleared browser loses access to every note;
+- import it on another computer, or give it to a co-GM, to read and write the same notes.
 
-1. Prends l'outil **Notes de carte** dans la barre d'outils.
-2. Choisis un type : piège, objet caché, mécanique ou note libre.
-3. Clique sur la carte, écris la note, puis **Enregistrer** (ou `Ctrl`/`Cmd` + `Entrée`).
+Notes written by older versions are encrypted automatically the first time the GM opens the scene.
+Stat blocks from Open5e are public, so only the link is encrypted, to hide which monster is behind a token.
 
-Le texte accepte le markdown : `**gras**`, `*italique*`, `~~barré~~`, `# titre`, listes, cases `- [ ]`,
-citations, tableaux, `[liens](https://…)` et `![images](https://…)`. Une image doit être en ligne : la
-note ne garde que son adresse. Le HTML écrit dans une note reste affiché comme du texte.
+**Good to know:** hidden note icons stay known to players' browsers. Only their content is protected.
 
-L'outil reste actif pour poser la note suivante. Un picto se déplace, se copie et
-se supprime comme n'importe quel objet Owlbear.
-
-**En partie :**
-
-- le titre de chaque note est affiché sous son picto ; le bouton **T** de l'outil Notes les masque ou les réaffiche pour toute la scène ;
-- clique sur un picto avec l'outil normal : la note s'ouvre à côté, et se ferme quand tu cliques ailleurs ;
-- **Marquer comme fait** estompe le picto ;
-- le bouton **Liste des notes** de l'outil permet de chercher, filtrer par type et centrer la carte sur une note.
-
-## Développement
+## Development
 
 ```sh
 pnpm install
@@ -60,36 +48,29 @@ pnpm test
 pnpm dev
 ```
 
-Pour essayer dans Owlbear Rodeo, ajoute l'extension personnalisée
-`http://localhost:5173/manifest.json`, puis active-la dans la salle.
+To try it in Owlbear Rodeo, add the custom extension `http://localhost:5173/manifest.json`, then enable it in the
+room.
 
-Aperçu d'une fiche hors d'Owlbear :
-`http://localhost:5173/statblock.html?preview=<lien AideDD>`
+The AideDD source (French stat blocks, pasted as a link) is offered when the interface is in French. Build with
+`VITE_AIDEDD=0` to remove it, or `VITE_AIDEDD=1` to offer it in every language.
 
-## Mise en ligne (Cloudflare Pages, gratuit)
+## Licences
 
-```sh
-npx wrangler login
-pnpm run deploy
-```
+Code: [MIT](LICENSE). Open5e stat blocks come from the System Reference Documents 5.1 and 5.2 by Wizards of the
+Coast LLC, under CC-BY-4.0; the source is shown under each stat block.
 
-Le manifest est alors à l'adresse
-`https://hidden-ink.pages.dev/manifest.json`, ou à l'adresse affichée
-par la commande si ce nom est déjà pris.
+---
 
-Le relais doit être hébergé avec le site, car AideDD n'autorise pas la lecture
-directe depuis un navigateur. Il est dans `functions/api/fiche.ts` et ne peut
-atteindre que les fiches de monstres d'aidedd.org.
+# Hidden Ink pour Owlbear Rodeo (français)
 
-## Bon à savoir
+**Fiches de monstres et notes secrètes pour le MJ, sur les tokens et la carte.** Tout ce que le MJ écrit est
+chiffré dans son navigateur : les joueurs ne peuvent pas le lire, même avec les outils de développement.
 
-- **Stockage :** un lien ou une fiche saisie à la main est enregistré sur le token,
-  dans la scène. L'interface ne le montre qu'au MJ, mais un joueur qui fouille les
-  outils de développement de son navigateur pourrait techniquement le lire.
-- **Notes de carte :** les pictos sont des objets masqués, que les joueurs ne voient
-  pas sur leur carte. Leur texte reste lisible avec les outils de développement.
-- **Pannes d'AideDD :** une fiche déjà ouverte reste en cache dans le navigateur où
-  elle a été lue. Une fiche jamais ouverte ne peut pas s'afficher pendant une panne.
-- **Taille :** une fiche saisie à la main est limitée à 12 ko.
-- **Usage :** projet prévu pour un usage personnel. Avant de le publier dans le
-  catalogue Owlbear, demande l'accord d'AideDD, car il réutilise le contenu de ses pages.
+- **Fiche de monstre :** clic droit sur un token, **Ajouter une fiche de monstre**, puis recherche Open5e, lien
+  AideDD (colle le lien, la fiche se charge seule) ou saisie à la main.
+- **Note secrète :** clic droit sur n'importe quel token, même celui d'un joueur, puis **Ajouter une note secrète**.
+- **Notes de carte :** outil **Notes de carte**, clique sur la carte, puis choisis le type dans la note.
+- **Clé de chiffrement :** dans les réglages (roue dentée de l'outil Notes de carte). Exporte-la et garde-la :
+  sans elle, un navigateur vidé perd toutes les notes. Importe-la sur un autre appareil ou chez un co-MJ.
+
+L'interface suit la langue du navigateur, et se change dans les réglages.
