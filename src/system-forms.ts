@@ -85,7 +85,7 @@ export function pf2eFormHtml(fiche: Pf2eFiche) {
     <div class="group">
       ${input("name", L(t("editor.manual.name"), "help.name"), fiche.name)}
       <div class="row3 head-row">
-        ${input("level", L(t("editor.pf2e.level"), "help.pf2e.level"), fiche.level, "4", 'inputmode="numeric"')}
+        ${input("level", L(t("editor.pf2e.level"), "help.pf2e.level"), fiche.level, "4", 'type="number" min="-1" max="25" step="1"')}
         ${select("rarity", t("editor.pf2e.rarity"), fiche.rarity, (["common", "uncommon", "rare", "unique"] as const).map((key) => [key, t(`sheet.pf2e.rarity.${key}`)]))}
         ${select("size", t("editor.pf2e.size"), fiche.size, PF2E_SIZES.map((key) => [key, t(`sheet.pf2e.size.${key}`)]))}
       </div>

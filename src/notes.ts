@@ -69,7 +69,36 @@ export type NoteMessage =
   | { type: "hide" }
   | { type: "editing"; value: boolean }
   /** Ouvre les réglages, par exemple pour importer la clé. */
-  | { type: "settings" };
+  | { type: "settings" }
+  /** Hauteur mesurée d'une note lue, pour la rouvrir directement à la bonne taille. */
+  | { type: "height"; query: string; height: number }
+  /** La liste ou les réglages ont été glissés : la page de fond les rouvre plus loin. */
+  | { type: "move-panel"; panel: PanelKind; dx: number; dy: number; query: string };
+
+/** Fenêtres d'outil déplaçables : la liste des notes et les réglages. */
+export type PanelKind = "list" | "settings";
+
+const panelPositionKey = (panel: PanelKind) => `${PLUGIN_ID}/position-${panel}`;
+const DEFAULT_PANEL_POSITION = { left: 72, top: 72 };
+
+/** Dernière position de la fenêtre, gardée dans ce navigateur. */
+export function panelPosition(panel: PanelKind): { left: number; top: number } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(panelPositionKey(panel)) ?? "null");
+    if (Number.isFinite(saved?.left) && Number.isFinite(saved?.top)) return { left: saved.left, top: saved.top };
+  } catch {
+    // Position illisible ou stockage indisponible : place par défaut.
+  }
+  return DEFAULT_PANEL_POSITION;
+}
+
+export function savePanelPosition(panel: PanelKind, position: { left: number; top: number }) {
+  try {
+    localStorage.setItem(panelPositionKey(panel), JSON.stringify(position));
+  } catch {
+    // Sans stockage, la fenêtre revient à sa place par défaut à la prochaine ouverture.
+  }
+}
 
 /** Picto de note de carte, que la note soit chiffrée ou non. */
 export const isNoteItem = (item: { metadata: Record<string, unknown> }) =>

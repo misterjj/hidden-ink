@@ -10,21 +10,26 @@ import {
   centeredView,
   filterNotes,
   isNoteItem,
+  isNoteType,
   type ListedNote,
   type NoteMessage,
   type NoteType,
 } from "./notes";
 import { currentLanguage, t } from "./i18n";
 import { readNote } from "./notes-scene";
+import { wirePanelMove } from "./panel-move";
 import "./style.css";
+import "./theme";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let items: Item[] = [];
 /** Notes déchiffrées de la scène ; une note illisible ici n'y figure pas. */
 let notes: ListedNote[] = [];
 let locked = 0;
-let filter: NoteType | "" = "";
-let search = "";
+/** Recherche et filtre survivent à un déplacement, qui rouvre la fenêtre. */
+const params = new URLSearchParams(location.search);
+let filter: NoteType | "" = isNoteType(params.get("type")) ? (params.get("type") as NoteType) : "";
+let search = params.get("q") ?? "";
 
 async function readAll() {
   const noteItems = items.filter(isNoteItem);
@@ -61,6 +66,26 @@ function renderRows() {
         : `<div class="empty">${icon("sheet", 24)}<span>${t("notes.noneYet")}</span></div>`;
 }
 
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * `animateTo` rend la main avant la fin de l'animation : ouverte trop tôt, la note se placerait
+ * d'après une vue encore en mouvement. On attend que la vue arrive, ou qu'elle s'arrête ailleurs
+ * (le MJ a bougé la carte entre-temps), sans jamais dépasser 1,5 s.
+ */
+async function viewSettled(target: { x: number; y: number }) {
+  let previous: { x: number; y: number } | undefined;
+  let still = 0;
+  for (let waited = 0; waited < 1500; waited += 50) {
+    const position = await OBR.viewport.getPosition();
+    if (Math.abs(position.x - target.x) < 1 && Math.abs(position.y - target.y) < 1) return;
+    still = previous && position.x === previous.x && position.y === previous.y ? still + 1 : 0;
+    if (still >= 4 && waited >= 300) return;
+    previous = position;
+    await pause(50);
+  }
+}
+
 async function goTo(itemId: string) {
   const item = items.find(({ id }) => id === itemId);
   if (!item) return;
@@ -71,10 +96,9 @@ async function goTo(itemId: string) {
     OBR.player.getSelection(),
   ]);
   // La note s'ouvre après le déplacement, pour se placer à côté du picto.
-  await OBR.viewport.animateTo({
-    position: centeredView(item.position, scale, width, height),
-    scale,
-  });
+  const target = centeredView(item.position, scale, width, height);
+  await OBR.viewport.animateTo({ position: target, scale });
+  await viewSettled(target);
   if (selection?.length === 1 && selection[0] === itemId) {
     const message: NoteMessage = { type: "show", itemId };
     await OBR.broadcast.sendMessage(NOTE_CHANNEL, message, { destination: "LOCAL" });
@@ -87,13 +111,14 @@ function render() {
   const filters = [["", t("notes.all")], ...NOTE_TYPE_IDS.map((id) => [id, noteTypeLabel(id)])];
   app.innerHTML = `
     <div class="window note">
-      <header class="bar">
+      <header class="bar" id="drag" title="${t("window.drag")}">
+        <span class="grip">${icon("grip", 14)}</span>
         <span class="title">${t("notes.listTitle")}<span class="count" id="count"></span></span>
         <button type="button" class="icon" id="close" title="${t("common.close")}">${icon("close")}</button>
       </header>
       <div class="note-filters">
         <div class="search">${icon("search", 14)}
-          <input id="search" type="search" placeholder="${t("notes.search")}" aria-label="${t("notes.search")}" />
+          <input id="search" type="search" placeholder="${t("notes.search")}" aria-label="${t("notes.search")}" value="${escapeHtml(search)}" />
         </div>
         <div class="chips">
           ${filters
@@ -106,6 +131,12 @@ function render() {
       </div>
       <div class="note-rows" id="rows"></div>
     </div>`;
+  wirePanelMove(app.querySelector<HTMLElement>("#drag")!, "list", () => {
+    const query = new URLSearchParams();
+    if (search) query.set("q", search);
+    if (filter) query.set("type", filter);
+    return query.toString();
+  });
   app.querySelector<HTMLButtonElement>("#close")!.onclick = () =>
     OBR.popover.close(LIST_POPOVER_ID);
   app.querySelector<HTMLInputElement>("#search")!.oninput = (event) => {

@@ -4,6 +4,7 @@ import { LockedError, MissingKeyError, byteSize, reveal, seal } from "./crypto";
 import { FicheError, aideddAvailable, loadFromLink } from "./data";
 import { currentLanguage, t } from "./i18n";
 import { labelWithHelp, wireHelp } from "./help";
+import { watchSteppers } from "./stepper";
 import { icon, type IconName } from "./icons";
 import { abilityLabels, escapeHtml, statblockToManual } from "./manual";
 import {
@@ -19,6 +20,7 @@ import { emptyDaggerheart, emptyPf2e, statblockToDaggerheart, statblockToPf2e } 
 import { NOTE_CHANNEL, type NoteMessage } from "./notes";
 import { formatChallenge, loadCreature, searchCreatures, type Open5eResult } from "./open5e";
 import "./style.css";
+import "./theme";
 import {
   CHANNEL,
   EDITOR_POPOVER_ID,
@@ -328,6 +330,11 @@ function render(current: TokenFiche | undefined, tokenName: string, tab: EditorT
   showTab(tab === "link" && !showLink ? "choice" : tab);
   app.querySelector<HTMLButtonElement>("#back")!.onclick = () => showTab("choice");
   wireHelp(app);
+  // Une seule surveillance pour toute la page, même redessinée.
+  if (!app.dataset.steppers) {
+    app.dataset.steppers = "1";
+    watchSteppers(app);
+  }
 
   // --- Onglets des jeux ---------------------------------------------------------------
   const choices = app.querySelector<HTMLElement>("#choices")!;

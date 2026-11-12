@@ -5,6 +5,7 @@ import {
   buildNote,
   centeredView,
   filterNotes,
+  NOTE_KEY,
   isMapNote,
   noteImageUrl,
   noteLabel,
@@ -12,7 +13,10 @@ import {
   type ListedNote,
   type NoteType,
 } from "../src/notes";
+import type { Item } from "@owlbear-rodeo/sdk";
 import { readFileSync } from "node:fs";
+import { unreadableData } from "../src/key-reset";
+import { METADATA_KEY, TOKEN_NOTE_KEY } from "../src/types";
 import { describe, expect, it, vi } from "vitest";
 import { setLanguage } from "../src/i18n";
 import { handleFicheRequest, normalizeFicheUrl } from "../shared/fiche-url";
@@ -670,5 +674,25 @@ describe("saisies guidées Pathfinder 2e et Daggerheart", () => {
     const grove = statblockToDaggerheart(parseStatblock(fixture("daggerheart-grove"), "https://seansbox.github.io/daggerheart-srd/environments/Abandoned%20Grove/")!);
     expect(grove).toMatchObject({ environment: true, type: "Exploration", difficulty: "11" });
     expect(grove.features[0].text).toContain("- A moss-covered tree trunk is actually the corpse of a treant.");
+  });
+});
+
+describe("repartir avec une nouvelle clé", () => {
+  const sealed = (kid: string) => ({ v: 1, kid, iv: "a", ct: "b" });
+  const item = (id: string, metadata: Record<string, unknown>) => ({ id, metadata }) as unknown as Item;
+
+  it("supprime les notes de carte illisibles et vide les tokens, sans toucher au reste", () => {
+    const result = unreadableData(
+      [
+        item("note-old", { [NOTE_KEY]: sealed("old") }),
+        item("note-new", { [NOTE_KEY]: sealed("new") }),
+        item("token", { [METADATA_KEY]: sealed("old"), [TOKEN_NOTE_KEY]: sealed("new") }),
+        item("plain", { [METADATA_KEY]: { kind: "open5e", key: "goblin" } }),
+        item("empty", {}),
+      ],
+      "new",
+    );
+    expect(result.remove).toEqual(["note-old"]);
+    expect([...result.clear]).toEqual([["token", [METADATA_KEY]]]);
   });
 });

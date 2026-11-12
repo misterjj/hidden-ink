@@ -173,6 +173,27 @@ export async function tryReveal<T>(value: unknown): Promise<T | undefined> {
   }
 }
 
+/**
+ * Réinitialise la clé de la salle. Par défaut, la salle passe à la clé de ce navigateur, ou à une clé
+ * neuve s'il n'en a pas : c'est la sortie de secours quand la clé de la salle est perdue.
+ * `fresh` remplace aussi la clé de ce navigateur, sur demande explicite du MJ.
+ */
+export async function restartRoomKey(fresh = false): Promise<Key> {
+  let key = fresh ? null : await localKey();
+  if (!key) {
+    key = await generateKey();
+    storeKey(key);
+    // Une clé neuve n'a jamais été copiée, même si l'ancienne l'avait été.
+    try {
+      localStorage.removeItem(EXPORTED_STORAGE);
+    } catch {
+      // Sans stockage, rien à effacer.
+    }
+  }
+  await OBR.room.setMetadata({ [ROOM_KID_KEY]: key.kid });
+  return key;
+}
+
 export async function importKey(text: string): Promise<Key | null> {
   const key = await parseKey(text);
   if (!key) return null;

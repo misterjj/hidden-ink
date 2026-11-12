@@ -28,6 +28,7 @@ import {
   type NoteType,
 } from "./notes";
 import "./style.css";
+import "./theme";
 import { CHANNEL, METADATA_KEY, TOKEN_NOTE_KEY, type Message, type TokenNote } from "./types";
 
 const params = new URLSearchParams(location.search);
@@ -47,12 +48,41 @@ const remindBackup = () => {
   if (!isExported()) OBR.notification.show(t("crypto.backupReminder"), "WARNING");
 };
 
+let reportedHeight = 0;
+
+/** La fenêtre prend la hauteur de la note lue ; la saisie a toujours toute la hauteur. */
 function fitHeight() {
   const content = app.querySelector<HTMLElement>("[data-fit]");
-  if (!content) return;
-  const bar = app.querySelector<HTMLElement>(".bar")?.offsetHeight ?? 0;
-  const footer = app.querySelector<HTMLElement>(".footer")?.offsetHeight ?? 0;
-  OBR.popover.setHeight(NOTE_POPOVER_ID, Math.min(NOTE_MAX_HEIGHT, bar + footer + content.scrollHeight));
+  let height = NOTE_MAX_HEIGHT;
+  if (content) {
+    const bar = app.querySelector<HTMLElement>(".bar")?.offsetHeight ?? 0;
+    const footer = app.querySelector<HTMLElement>(".footer")?.offsetHeight ?? 0;
+    height = Math.min(NOTE_MAX_HEIGHT, bar + footer + content.scrollHeight);
+  }
+  // Fenêtre pas encore mise en page : on ne la réduit pas à rien.
+  if (height <= 0) return;
+  if (content && height !== reportedHeight) {
+    reportedHeight = height;
+    void send({ type: "height", query: location.search.slice(1), height });
+  }
+  // Toujours renvoyée, même inchangée : quand la même note est rouverte, Owlbear garde la page
+  // mais remet la fenêtre à sa hauteur d'ouverture, et seule cette mesure la corrige.
+  // Pas de boucle : une hauteur identique ne redimensionne rien.
+  OBR.popover.setHeight(NOTE_POPOVER_ID, height);
+}
+
+/**
+ * Mesurée une seule fois, la hauteur était fausse quand le texte se mettait en page après coup
+ * (police, thème, image, largeur définitive de la fenêtre) : on la suit tant que la note est affichée.
+ */
+const fitObserver = new ResizeObserver(() => fitHeight());
+
+function watchFit() {
+  fitObserver.disconnect();
+  const content = app.querySelector<HTMLElement>("[data-fit]");
+  if (content) for (const child of content.children) fitObserver.observe(child);
+  fitObserver.observe(document.documentElement);
+  fitHeight();
 }
 
 function bar(type: NoteType | "token", label: string, extra = "") {
@@ -85,7 +115,7 @@ function renderLocked(label: string, remove: () => Promise<void>) {
     await remove();
     await send({ type: "hide" });
   };
-  fitHeight();
+  watchFit();
 }
 
 // --- Notes de carte ---------------------------------------------------------------
@@ -160,7 +190,7 @@ function renderRead(note: MapNote) {
   app.querySelectorAll<HTMLImageElement>(".note-text img").forEach((image) => {
     image.onload = fitHeight;
   });
-  fitHeight();
+  watchFit();
 }
 
 function renderEdit(type: NoteType, current?: MapNote, position?: { x: number; y: number }) {
@@ -265,6 +295,8 @@ function renderEdit(type: NoteType, current?: MapNote, position?: { x: number; y
   };
   title.focus();
   title.select();
+  // Une note lue, plus courte, a pu réduire la fenêtre : la saisie reprend toute la hauteur.
+  watchFit();
 }
 
 // --- Note secrète d'un token -------------------------------------------------------
@@ -304,7 +336,7 @@ function renderTokenRead(name: string, note: TokenNote, hasFiche: boolean) {
   app.querySelectorAll<HTMLImageElement>(".note-text img").forEach((image) => {
     image.onload = fitHeight;
   });
-  fitHeight();
+  watchFit();
 }
 
 function renderTokenEdit(name: string, current: TokenNote | undefined, hasFiche: boolean) {
@@ -386,6 +418,7 @@ function renderTokenEdit(name: string, current: TokenNote | undefined, hasFiche:
     }
   };
   text.focus();
+  watchFit();
 }
 
 async function startToken() {

@@ -1,6 +1,6 @@
 {
   "name": "Hidden Ink",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "manifest_version": 1,
   "author": "Jonathan Jorand",
   "description": "Secret GM notes and stat blocks on your tokens and maps, encrypted so only the GM can read them.",
