@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hidden Ink · Notes secrètes du MJ pour Owlbear Rodeo</title>
+    <meta name="description" content="Fiches de monstres et notes secrètes du MJ sur tes tokens et tes cartes Owlbear Rodeo, chiffrées dans ton navigateur : les joueurs ne peuvent pas les lire, même avec les outils de développement." />
+    <link rel="alternate" hreflang="en" href="https://hidden-ink.pages.dev/" />
+    <link rel="alternate" hreflang="fr" href="https://hidden-ink.pages.dev/fr/" />
+    <link rel="icon" href="/badge.svg" />
+    <link rel="stylesheet" href="/src/guide/guide.css" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="#"><img src="/badge.svg" alt="" /> Hidden Ink</a>
+      <nav id="site-menu">
+        <a href="#sealed">Chiffrement</a>
+        <a href="#statblocks">Fiches</a>
+        <a href="#notes">Notes</a>
+        <a href="#key">Ta clé</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="lang" href="/" hreflang="en" lang="en" title="English version">EN</a>
+      <button class="menu-toggle" type="button" popovertarget="site-menu" aria-controls="site-menu" aria-label="Menu"><span></span></button>
+      <a class="button small primary" href="#install">Installer</a>
+    </header>
+
+    <section class="hero">
+      <canvas id="ink" aria-hidden="true"></canvas>
+      <div class="hero-inner">
+        <div class="hero-text">
+          <p class="kicker">Extension pour Owlbear Rodeo</p>
+          <h1>Tes secrets,<br /><span class="spark">à l'encre invisible.</span></h1>
+          <p class="lead">
+            Les fiches de tes monstres, les notes de tes pièges et de tes PNJ.
+            Tout sur la carte, tout chiffré : tes joueurs voient la carte, jamais tes notes.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="#install">L'ajouter à ma salle</a>
+            <a class="button ghost" href="#sealed">Voir comment ça marche</a>
+          </div>
+          <p class="hint"><span class="on-mouse">Survole</span><span class="on-touch">Fais glisser ton doigt sur</span> la carte pour voir ce que seul le MJ voit.</p>
+        </div>
+        <figure class="lens" aria-label="La même carte, vue par un joueur et par le MJ">
+          <div class="lens-stage">
+            <img class="map" src="/guide/map.jpg" alt="Un village de port avec des quais, une place de marché et un pont" />
+            <div class="tokens" aria-hidden="true">
+              <span class="token pc" style="--x: 36; --y: 51">K</span>
+              <span class="token pc" style="--x: 40.5; --y: 59">R</span>
+              <span class="token pc" style="--x: 33; --y: 61">W</span>
+              <span class="token npc" style="--x: 52; --y: 27">M</span>
+              <span class="token foe" style="--x: 86; --y: 58">G</span>
+            </div>
+            <div class="gm" aria-hidden="true">
+              <span class="badge" style="--x: 52; --y: 27"><img src="/badge.svg" alt="" /></span>
+              <span class="pin" style="--x: 19; --y: 47"><img src="/notes/piege.svg" alt="" /><b>Planches pourries</b></span>
+              <span class="pin" style="--x: 35; --y: 84"><img src="/notes/objet.svg" alt="" /><b>Clé au fond du puits</b></span>
+              <span class="pin" style="--x: 69; --y: 71"><img src="/notes/mecanique.svg" alt="" /><b>Trappe vers les grottes</b></span>
+              <span class="pin" style="--x: 85; --y: 15"><img src="/notes/libre.svg" alt="" /><b>Embuscade à la nuit</b></span>
+              <span class="whisper" style="--x: 52; --y: 27">Marta est la contrebandière.</span>
+            </div>
+            <span class="ring" aria-hidden="true"></span>
+            <span class="tag player"><small>Vu par</small>Joueurs</span>
+            <span class="tag gm-tag"><small>Vu par</small>MJ</span>
+          </div>
+          <div class="lens-switch" role="group" aria-label="Point de vue">
+            <button type="button" data-view="lens" aria-pressed="true">Loupe</button>
+            <button type="button" data-view="player" aria-pressed="false">Joueur</button>
+            <button type="button" data-view="gm" aria-pressed="false">MJ</button>
+          </div>
+        </figure>
+      </div>
+      <a class="scroll" href="#sealed" aria-label="Descendre"></a>
+    </section>
+
+    <section id="sealed" class="band">
+      <div class="wrap">
+        <header class="chapter-head center">
+          <p class="kicker">Vraiment cachées</p>
+          <h2>Même les outils de développement n'y voient que des taches d'encre.</h2>
+          <p class="sub">Owlbear Rodeo envoie toute la scène à chaque joueur. Hidden Ink chiffre d'abord tes notes dans ton navigateur, en AES-GCM 256. Essaie : cette note est vraiment chiffrée, là, maintenant, avec une clé qui n'existe que dans cette page.</p>
+        </header>
+        <div class="cipher">
+          <div class="cipher-card plain">
+            <p class="cipher-label"><span>1</span>Tu écris</p>
+            <div class="ext ext-note ext-cipher" id="cipher-window"></div>
+          </div>
+          <div class="cipher-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div>
+          <div class="cipher-card sealed">
+            <p class="cipher-label"><span>2</span>Le navigateur d'un joueur reçoit</p>
+            <pre class="code" id="cipher-out" aria-live="polite"></pre>
+            <div class="cipher-actions">
+              <button type="button" class="button small primary" id="decrypt">La lire avec la clé du MJ</button>
+              <span class="cipher-note" id="cipher-note">Sans la clé : rien à lire.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="statblocks" class="chapter">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">I</p>
+          <h2>Des fiches sur tes tokens</h2>
+          <p class="sub">Clic droit sur un monstre, <em>Ajouter une fiche de monstre</em>, choisis ton jeu. La fiche s'ouvre dans une fenêtre que tu peux déplacer, redimensionner ou replier en une ligne d'icônes.</p>
+          <ul class="runes">
+            <li><strong>D&amp;D 5e :</strong> colle un lien AideDD, cherche dans le SRD avec Open5e, ou écris-la à la main.</li>
+            <li><strong>Pathfinder 2e :</strong> colle un lien d'Archives of Nethys (en anglais). Les versions élite et faible suivent.</li>
+            <li><strong>Daggerheart :</strong> colle un adversaire ou un environnement du SRD en ligne (en anglais).</li>
+            <li><strong>Tout autre jeu :</strong> une fiche libre, avec tes propres propriétés et capacités.</li>
+            <li><em>Adapter</em> recopie une fiche dans un formulaire, pour la modifier à ta sauce.</li>
+          </ul>
+        </div>
+        <figure class="sheet-demo">
+          <div class="systems" role="tablist" aria-label="Jeu">
+            <button type="button" role="tab" aria-selected="true" data-system="dnd">D&amp;D 5e</button>
+            <button type="button" role="tab" aria-selected="false" data-system="pf2e">Pathfinder 2e</button>
+            <button type="button" role="tab" aria-selected="false" data-system="dh">Daggerheart</button>
+            <button type="button" role="tab" aria-selected="false" data-system="generic">Autre jeu</button>
+          </div>
+          <div class="ext ext-sheet" id="sheet-window"></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="tokens" class="chapter reverse">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">II</p>
+          <h2>Un secret sur chaque token</h2>
+          <p class="sub">L'aubergiste est un cultiste, l'épée du paladin est maudite. Écris-le sur le token, même celui d'un joueur : il n'en saura rien.</p>
+          <ul class="runes">
+            <li>Clic droit sur n'importe quel token, <em>Ajouter une note secrète</em>.</li>
+            <li>Une petite enveloppe marque le token, <strong>sur l'écran du MJ seulement</strong>.</li>
+            <li>Du Markdown pour les listes, le gras et les liens.</li>
+          </ul>
+        </div>
+        <figure class="token-demo" aria-hidden="true">
+          <div class="crop" style="--fx: 52%; --fy: 27%">
+            <span class="token npc big">M<img class="env" src="/badge.svg" alt="" /></span>
+          </div>
+          <div class="menu">
+            <p class="menu-row"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z" /><path d="M15 3v4h4" /><path d="M9 12h7M9 16h7" /></svg><span data-ext-text="menu.addFiche"></span></p>
+            <p class="menu-row on"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M3 7l9 7 9-7" /></svg><span data-ext-text="menu.addTokenNote"></span></p>
+          </div>
+          <div class="ext ext-note" id="token-note-window" inert></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="notes" class="chapter">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">III</p>
+          <h2>Des notes épinglées sur la carte</h2>
+          <p class="sub">Pièges, objets cachés, mécanismes : pose-les là où ils sont. Prends l'outil <em>Notes de carte</em>, clique sur la carte, écris.</p>
+          <ul class="runes">
+            <li>Quatre types, chacun son icône : <strong>piège</strong>, <strong>objet caché</strong>, <strong>mécanique</strong>, <strong>note libre</strong>.</li>
+            <li><em>Marquer comme fait</em> quand les joueurs l'ont trouvé : l'icône s'éteint.</li>
+            <li>Des titres sur la carte, pour le MJ seulement, masqués en un clic.</li>
+            <li>La liste des notes de la scène, avec recherche et filtres.</li>
+          </ul>
+        </div>
+        <figure class="notes-demo">
+          <div class="ext ext-list" id="notes-list-window"></div>
+          <div class="ext ext-note" id="map-note-window"></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="key" class="chapter reverse amber">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">IV</p>
+          <h2>Une clé, gardée par toi</h2>
+          <p class="sub">Ta clé naît avec ta première note et reste dans ton navigateur. Pas de compte, pas de serveur : qui a la clé lit les notes.</p>
+          <ul class="runes">
+            <li><strong>Copie-la</strong> et garde-la en lieu sûr, depuis les réglages de l'outil <em>Notes de carte</em>.</li>
+            <li>Importe-la sur un autre ordinateur, ou donne-la à un <strong>co-MJ</strong>.</li>
+            <li>Clé perdue, notes perdues : personne ne peut les ouvrir, pas même moi.</li>
+          </ul>
+        </div>
+        <figure class="key-demo">
+          <div class="ext ext-settings" id="settings-window"></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="install" class="band install">
+      <div class="wrap center">
+        <p class="kicker">Prête en une minute</p>
+        <h2>Amène-la à ta table</h2>
+        <ol class="ritual">
+          <li><span>1</span><strong>Installe l'extension</strong><p>Depuis la boutique d'Owlbear Rodeo, ou avec son adresse juste en dessous.</p></li>
+          <li><span>2</span><strong>Active-la dans ta salle</strong><p>Le MJ le fait une fois. Les joueurs n'ont rien à installer.</p></li>
+          <li><span>3</span><strong>Écris ton premier secret</strong><p>Clic droit sur un token, puis <em>Ajouter une fiche de monstre</em> ou <em>Ajouter une note secrète</em>.</p></li>
+        </ol>
+        <div class="install-bar">
+          <a class="button primary" href="#" data-link="store">Boutique Owlbear Rodeo</a>
+          <span class="or">ou</span>
+          <span class="copy-wrap">
+            <button class="manifest copy" type="button" data-copy="https://hidden-ink.pages.dev/manifest.json">
+              <small>Extension personnalisée</small>
+              <code>https://hidden-ink.pages.dev/manifest.json</code>
+              <b>Copier</b>
+            </button>
+            <span class="copy-tip" role="status"></span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="chapter">
+      <div class="wrap">
+        <header class="chapter-head center">
+          <p class="kicker">Questions</p>
+          <h2>Avant que tu demandes</h2>
+        </header>
+        <div class="faq">
+          <details>
+            <summary>Les joueurs doivent-ils installer quelque chose ?</summary>
+            <p>Non. Une fois que le MJ a activé l'extension dans la salle, elle marche. Les joueurs n'en voient simplement rien.</p>
+          </details>
+          <details>
+            <summary>Un joueur malin peut-il lire mes notes ?</summary>
+            <p>Non. Son navigateur ne reçoit que des données chiffrées. Sans ta clé, même les outils de développement n'affichent rien de lisible. Il peut savoir qu'une note existe quelque part sur la carte, mais pas ce qu'elle dit.</p>
+          </details>
+          <details>
+            <summary>Et si je perds ma clé ?</summary>
+            <p>Les notes chiffrées avec elle ne se lisent plus. C'est pour ça que les réglages te demandent de la copier. Si elle est perdue, <em>Réinitialiser la clé</em> te permet de repartir de zéro dans la salle.</p>
+          </details>
+          <details>
+            <summary>Comment partager mes notes avec un co-MJ ?</summary>
+            <p>Copie ta clé depuis les réglages et envoie-la-lui en privé. Une fois importée, vous lisez et écrivez tous les deux les mêmes notes.</p>
+          </details>
+          <details>
+            <summary>Les fiches liées sont-elles copiées ?</summary>
+            <p>Non. Les fiches d'Open5e ou d'un lien sont lues sur leur site quand tu les ouvres. Seule la référence est chiffrée, pour que les joueurs ne sachent pas quel monstre se cache derrière un token.</p>
+          </details>
+          <details>
+            <summary>Quelles langues sont disponibles ?</summary>
+            <p>Le français et l'anglais. L'interface suit la langue de ton navigateur, et tu peux la changer dans les réglages.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="support" class="band">
+      <div class="wrap">
+        <div class="support-card">
+          <div>
+            <p class="kicker">Que l'encre coule encore</p>
+            <h2>Hidden Ink est gratuite</h2>
+            <p class="sub">Si elle garde bien tes secrets, tu peux l'aider à grandir : de nouveaux jeux, de nouveaux types de notes, et du temps pour corriger ce que tu signales.</p>
+          </div>
+          <div class="actions">
+            <a class="button primary" href="#" data-link="patreon">Soutenir sur Patreon</a>
+            <a class="button ghost" href="https://github.com/misterjj/hidden-ink/issues" target="_blank" rel="noopener">Signaler un bug</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Hidden Ink par Jonathan Jorand · Libre et gratuite (MIT) · Sans lien avec Owlbear Rodeo ·
+      <a href="https://github.com/misterjj/hidden-ink" target="_blank" rel="noopener">GitHub</a>
+      <p class="privacy">Ce site utilise Cloudflare Web Analytics pour compter les visites anonymement, sans cookies. Aucune donnée personnelle n'est collectée.</p>
+      <p class="privacy">Gobelin D&amp;D 5e tiré du System Reference Document 5.1 de Wizards of the Coast LLC, sous licence CC-BY-4.0.</p>
+    </footer>
+
+    <script type="module" src="/src/guide/guide.ts"></script>
+  </body>
+</html>

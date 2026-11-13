@@ -2,20 +2,15 @@ import OBR from "@owlbear-rodeo/sdk";
 import { importKey, isExported, localKey, markExported, parseKey, restartRoomKey, roomKid, type Key } from "./crypto";
 import { currentLanguage, languageSetting, saveLanguageSetting, t, type LanguageSetting } from "./i18n";
 import { icon } from "./icons";
+import { settingsHtml, type SettingsMessage } from "./settings-view";
 import { unreadableData } from "./key-reset";
 import { wirePanelMove } from "./panel-move";
-import { escapeHtml } from "./manual";
 import { SETTINGS_POPOVER_ID } from "./notes";
 import "./style.css";
 import "./theme";
 
-const PATREON_URL = "https://www.patreon.com/misterjj_obr";
-/** Pas encore de site guide : le README du dépôt sert de mode d'emploi. */
-const GUIDE_URL = "https://github.com/misterjj/hidden-ink#readme";
-
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
-type Message = { text: string; kind: "success" | "error" | "warning" };
 /**
  * Confirmation en cours, dans un encadré sous l'action : les fenêtres de confirmation du navigateur
  * sont bloquées dans Owlbear.
@@ -24,97 +19,14 @@ let confirming: "import" | "restart" | undefined;
 /** Le texte collé survit aux redessins de la page. */
 let importText = "";
 
-const confirmBox = (id: string, text: string, confirmLabel: string, extra = "") => `
-  <div class="confirm" role="alertdialog" aria-labelledby="${id}-text">
-    <p class="warning">${icon("key", 14)}<span id="${id}-text">${escapeHtml(text)}</span></p>
-    ${extra}
-    <div class="row">
-      <button type="button" class="btn danger solid" id="${id}-yes">${escapeHtml(confirmLabel)}</button>
-      <button type="button" class="btn ghost" id="${id}-no">${t("common.cancel")}</button>
-    </div>
-  </div>`;
-
-async function render(message?: Message) {
+async function render(message?: SettingsMessage) {
   document.documentElement.lang = currentLanguage();
   const [key, kid] = await Promise.all([localKey(), roomKid()]);
   const setting = languageSetting();
-  const language = (value: LanguageSetting, label: string, lang = "") =>
-    `<button type="button" data-language="${value}" aria-pressed="${setting === value}"${lang ? ` lang="${lang}"` : ""}>${label}</button>`;
   const saved = isExported();
   /** La salle attend une clé que ce navigateur n'a pas : sans sortie, plus rien ne s'écrit. */
   const stuck = !!kid && kid !== key?.kid;
-
-  /**
-   * Bloqué : la salle reprend la clé de ce navigateur, ou une neuve. Sinon, la réinitialisation
-   * remplace la clé de ce navigateur par une neuve.
-   */
-  const restartText = stuck
-    ? `${t(key ? "settings.restartUseMine" : "settings.restartNew")} ${t("settings.restartLoss")}`
-    : t("settings.resetReplace");
-  const restart =
-    !key && !kid
-      ? ""
-      : confirming === "restart"
-        ? confirmBox(
-            "restart",
-            restartText,
-            t("settings.restartConfirm"),
-            `<label class="check"><input type="checkbox" id="purge" /> ${t("settings.restartPurge")}</label>`,
-          )
-        : `<button type="button" class="btn small ${stuck ? "" : "danger"} reset-key" id="restart">${icon("key", 14)}${t(stuck ? "settings.restart" : "settings.reset")}</button>`;
-
-  app.innerHTML = `
-    <div class="editor settings">
-      <header class="bar" id="drag" title="${t("window.drag")}">
-        <span class="grip">${icon("grip", 14)}</span>
-        <span class="title">${t("app.name")} <small>· ${t("settings.title")}</small></span>
-        <button type="button" class="icon" id="close" title="${t("common.close")}">${icon("close")}</button>
-      </header>
-      <div class="pane">
-        <section>
-          <h2>${t("settings.language")}</h2>
-          <div class="segmented" role="group" aria-label="${t("settings.language")}">
-            ${language("auto", t("settings.languageAuto"))}
-            ${language("fr", "Français", "fr")}
-            ${language("en", "English", "en")}
-          </div>
-          <p class="hint">${t("settings.languageHelp")}</p>
-        </section>
-        <section>
-          <h2>${t("settings.key")}</h2>
-          <p class="hint">${t("settings.keyIntro")}</p>
-          ${
-            key
-              ? `<div class="key-card">
-                  <div class="row">
-                    <button type="button" class="btn small ghost" id="show">${icon("eye", 14)}${t("settings.keyShow")}</button>
-                    <button type="button" class="btn small ${saved ? "" : "primary"}" id="copy">${icon("copy", 14)}${t("settings.keyCopy")}</button>
-                  </div>
-                  <p class="key-value" id="key-value" hidden></p>
-                </div>
-                ${saved ? "" : `<p class="warning">${icon("key", 14)}<span>${t("settings.keyNotExported")}</span></p>`}
-                ${stuck ? `<p class="warning">${icon("lock", 14)}<span>${t("settings.keyOtherRoom")}</span></p>` : ""}`
-              : `<p class="info">${icon(kid ? "lock" : "key", 14)}<span>${t(kid ? "crypto.noKey" : "settings.keyNone")}</span></p>`
-          }
-          ${restart}
-        </section>
-        <section>
-          <h2>${t("settings.keyImport")}</h2>
-          <div class="row">
-            <input id="import" autocomplete="off" spellcheck="false" placeholder="${t("settings.keyImportHint")}" aria-label="${t("settings.keyImport")}" value="${escapeHtml(importText)}" />
-            <button type="button" class="btn" id="import-button">${t("settings.keyImportButton")}</button>
-          </div>
-          ${confirming === "import" ? confirmBox("replace", t("settings.keyReplace"), t("settings.keyReplaceConfirm")) : ""}
-          ${message ? `<p class="${message.kind}">${icon(message.kind === "success" ? "check" : "key", 14)}<span>${escapeHtml(message.text)}</span></p>` : ""}
-        </section>
-        <section class="about">
-          <h2>${t("settings.about")}</h2>
-          <p class="hint">${t("settings.support")}</p>
-          <p><a class="patreon" href="${PATREON_URL}" target="_blank" rel="noopener">${t("settings.patreon")}</a></p>
-          <p class="hint"><a href="${GUIDE_URL}" target="_blank" rel="noopener">${t("settings.guide")}</a></p>
-        </section>
-      </div>
-    </div>`;
+  app.innerHTML = settingsHtml({ setting, hasKey: !!key, roomHasKey: !!kid, stuck, saved, confirming, importText, message });
 
   app.querySelector<HTMLButtonElement>("#close")!.onclick = () => OBR.popover.close(SETTINGS_POPOVER_ID);
   app.querySelectorAll<HTMLButtonElement>("[data-language]").forEach((button) => {

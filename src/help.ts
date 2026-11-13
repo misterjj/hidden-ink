@@ -19,7 +19,9 @@ export function wireHelp(root: HTMLElement) {
   tooltip.className = "tooltip";
   tooltip.setAttribute("role", "tooltip");
   tooltip.hidden = true;
-  document.body.append(tooltip);
+  // Dans un Shadow DOM (site guide), la bulle reste à l'intérieur pour garder ses styles.
+  const container = root.getRootNode();
+  (container instanceof ShadowRoot ? container : document.body).append(tooltip);
   let pinned: HTMLElement | null = null;
 
   const show = (target: HTMLElement) => {

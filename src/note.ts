@@ -1,10 +1,8 @@
 import OBR, { buildImage, isImage } from "@owlbear-rodeo/sdk";
 import { LockedError, MissingKeyError, byteSize, isExported, reveal, seal } from "./crypto";
 import { currentLanguage, t } from "./i18n";
-import { labelWithHelp, wireHelp } from "./help";
-import { icon } from "./icons";
-import { escapeHtml } from "./manual";
-import { renderMarkdown } from "./markdown";
+import { wireHelp } from "./help";
+import { lockedNoteHtml, mapNoteEditHtml, mapNoteReadHtml, tokenNoteEditHtml, tokenNoteReadHtml } from "./note-view";
 import {
   MAX_NOTE_BYTES,
   NOTE_CHANNEL,
@@ -16,7 +14,6 @@ import {
   NOTE_KEY,
   NOTE_MAX_HEIGHT,
   NOTE_POPOVER_ID,
-  NOTE_TYPE_IDS,
   buildNote,
   isMapNote,
   isNoteType,
@@ -85,30 +82,9 @@ function watchFit() {
   fitHeight();
 }
 
-function bar(type: NoteType | "token", label: string, extra = "") {
-  const image = type === "token" ? "/badge.svg" : `/notes/${type}.svg`;
-  return `
-    <header class="bar note-bar note-type-${type}">
-      <span class="type-chip"><img src="${image}" alt="" />${escapeHtml(label)}</span>
-      <span class="title">${extra ? `<small>${escapeHtml(extra)}</small>` : ""}</span>
-      <button type="button" class="icon" id="close" title="${t("common.close")}">${icon("close")}</button>
-    </header>`;
-}
-
 /** Note chiffrée avec une clé absente de ce navigateur : on ne peut que la supprimer. */
 function renderLocked(label: string, remove: () => Promise<void>) {
-  app.innerHTML = `
-    <div class="window note">
-      ${bar("token", label)}
-      <div class="note-read" data-fit>
-        <div class="locked">${icon("lock", 28)}<p>${escapeHtml(t("crypto.locked"))}</p>
-          <button type="button" class="btn primary" id="settings">${icon("key", 14)}${t("notes.openSettings")}</button>
-        </div>
-      </div>
-      <footer class="footer">
-        <button type="button" class="btn danger" id="remove">${icon("trash", 14)}${t("common.delete")}</button>
-      </footer>
-    </div>`;
+  app.innerHTML = lockedNoteHtml(label);
   app.querySelector<HTMLButtonElement>("#close")!.onclick = () => send({ type: "hide" });
   app.querySelector<HTMLButtonElement>("#settings")!.onclick = () => send({ type: "settings" });
   app.querySelector<HTMLButtonElement>("#remove")!.onclick = async () => {
@@ -157,19 +133,7 @@ async function createNote(note: MapNote, x: number, y: number) {
 }
 
 function renderRead(note: MapNote) {
-  app.innerHTML = `
-    <div class="window note ${note.done ? "note-done" : ""}">
-      ${bar(note.type, noteTypeLabel(note.type))}
-      <div class="note-read" data-fit>
-        <h1>${escapeHtml(note.title)}</h1>
-        <div class="note-text">${renderMarkdown(note.text)}</div>
-      </div>
-      <footer class="footer">
-        <button type="button" class="btn" id="done" aria-pressed="${Boolean(note.done)}">${icon(note.done ? "undo" : "check", 14)}${note.done ? t("notes.markTodo") : t("notes.markDone")}</button>
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="edit">${icon("edit", 14)}${t("common.edit")}</button>
-      </footer>
-    </div>`;
+  app.innerHTML = mapNoteReadHtml(note);
   app.querySelector<HTMLButtonElement>("#close")!.onclick = () => send({ type: "hide" });
   app.querySelector<HTMLButtonElement>("#edit")!.onclick = () => {
     send({ type: "editing", value: true });
@@ -194,33 +158,7 @@ function renderRead(note: MapNote) {
 }
 
 function renderEdit(type: NoteType, current?: MapNote, position?: { x: number; y: number }) {
-  app.innerHTML = `
-    <div class="window note">
-      ${bar(type, noteTypeLabel(type))}
-      <form class="pane" id="form">
-        <p class="field-caption">${labelWithHelp(t("notes.fieldType"), t("help.note.type"))}</p>
-        <div class="types" role="group" aria-label="${t("notes.fieldType")}">
-          ${NOTE_TYPE_IDS.map(
-            (id) =>
-              `<button type="button" class="note-type-${id}" data-type="${id}" aria-pressed="${id === type}"><img src="/notes/${id}.svg" alt="" />${escapeHtml(noteTypeLabel(id))}</button>`,
-          ).join("")}
-        </div>
-        <label>${labelWithHelp(t("notes.fieldTitle"), t("help.note.title"))}
-          <input name="title" autocomplete="off" value="${escapeHtml(current?.title ?? "")}" placeholder="${escapeHtml(noteTypeLabel(type))}" />
-        </label>
-        <label class="note-grow">
-          ${labelWithHelp(t("notes.fieldText"), t("help.note.text"))}
-          <textarea name="text">${escapeHtml(current?.text ?? "")}</textarea>
-        </label>
-        <p class="error" id="error" hidden></p>
-      </form>
-      <footer class="footer">
-        ${current ? `<button type="button" class="btn danger" id="remove" title="${t("common.delete")}">${icon("trash", 14)}</button>` : ""}
-        <span class="spacer"></span>
-        <button type="button" class="btn ghost" id="cancel">${t("common.cancel")}</button>
-        <button type="submit" form="form" class="btn primary">${t("common.save")}</button>
-      </footer>
-    </div>`;
+  app.innerHTML = mapNoteEditHtml(type, current);
   OBR.popover.setHeight(NOTE_POPOVER_ID, NOTE_MAX_HEIGHT);
   wireHelp(app);
 
@@ -312,18 +250,7 @@ async function saveTokenNote(note: TokenNote | undefined) {
 }
 
 function renderTokenRead(name: string, note: TokenNote, hasFiche: boolean) {
-  app.innerHTML = `
-    <div class="window note">
-      ${bar("token", t("tokenNote.title"), name)}
-      <div class="note-read" data-fit>
-        <div class="note-text">${renderMarkdown(note.text)}</div>
-      </div>
-      <footer class="footer">
-        ${hasFiche ? `<button type="button" class="btn" id="fiche">${icon("sheet", 14)}${t("tokenNote.openFiche")}</button>` : ""}
-        <span class="spacer"></span>
-        <button type="button" class="btn" id="edit">${icon("edit", 14)}${t("common.edit")}</button>
-      </footer>
-    </div>`;
+  app.innerHTML = tokenNoteReadHtml(name, note, hasFiche);
   app.querySelector<HTMLButtonElement>("#close")!.onclick = () => send({ type: "hide" });
   app.querySelector<HTMLButtonElement>("#edit")!.onclick = () => {
     send({ type: "editing", value: true });
@@ -340,23 +267,7 @@ function renderTokenRead(name: string, note: TokenNote, hasFiche: boolean) {
 }
 
 function renderTokenEdit(name: string, current: TokenNote | undefined, hasFiche: boolean) {
-  app.innerHTML = `
-    <div class="window note">
-      ${bar("token", t("tokenNote.title"), name)}
-      <form class="pane" id="form">
-        <label class="note-grow">
-          ${labelWithHelp(t("notes.fieldText"), t("help.note.text"))}
-          <textarea name="text" placeholder="${escapeHtml(t("tokenNote.placeholder"))}">${escapeHtml(current?.text ?? "")}</textarea>
-        </label>
-        <p class="error" id="error" hidden></p>
-      </form>
-      <footer class="footer">
-        ${current ? `<button type="button" class="btn danger" id="remove" title="${t("common.delete")}">${icon("trash", 14)}</button>` : ""}
-        <span class="spacer"></span>
-        <button type="button" class="btn ghost" id="cancel">${t("common.cancel")}</button>
-        <button type="submit" form="form" class="btn primary">${t("common.save")}</button>
-      </footer>
-    </div>`;
+  app.innerHTML = tokenNoteEditHtml(name, current);
   OBR.popover.setHeight(NOTE_POPOVER_ID, NOTE_MAX_HEIGHT);
   wireHelp(app);
 

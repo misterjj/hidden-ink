@@ -225,6 +225,20 @@ export function statblockParts(statblock: Statblock): Part[] {
 
 const wrapProps = (html: string) => (html ? `<div class="props">${html}</div>` : "");
 
+/** Ligne de pictos de la fenêtre réduite, un par partie de la fiche. */
+export function miniToolsHtml(parts: Part[]) {
+  if (!parts.length) return `<span class="hint">${t("window.unavailable")}</span>`;
+  return parts
+    .map(
+      (part, index) =>
+        `<button type="button" class="part" data-part="${index}" aria-label="${escapeHtml(part.label)}">${part.icon}</button>`,
+    )
+    .join("");
+}
+
+/** Détail d'une partie, sous les pictos. */
+export const miniPanelHtml = (part: Part) => `<h2>${escapeHtml(part.label)}</h2>${part.html}`;
+
 export function windowHtml(content: string, title: string, sourceUrl?: string, hasNote = false) {
   return `
     <div class="window">

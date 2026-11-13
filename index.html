@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hidden Ink · Secret GM notes for Owlbear Rodeo</title>
+    <meta name="description" content="Stat blocks and secret GM notes on your tokens and maps in Owlbear Rodeo, encrypted in your browser: players can't read them, not even with developer tools." />
+    <link rel="alternate" hreflang="en" href="https://hidden-ink.pages.dev/" />
+    <link rel="alternate" hreflang="fr" href="https://hidden-ink.pages.dev/fr/" />
+    <link rel="icon" href="/badge.svg" />
+    <link rel="stylesheet" href="/src/guide/guide.css" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="#"><img src="/badge.svg" alt="" /> Hidden Ink</a>
+      <nav id="site-menu">
+        <a href="#sealed">Encryption</a>
+        <a href="#statblocks">Stat blocks</a>
+        <a href="#notes">Notes</a>
+        <a href="#key">Your key</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="lang" href="/fr/" hreflang="fr" lang="fr" title="Version française">FR</a>
+      <button class="menu-toggle" type="button" popovertarget="site-menu" aria-controls="site-menu" aria-label="Menu"><span></span></button>
+      <a class="button small primary" href="#install">Install</a>
+    </header>
+
+    <section class="hero">
+      <canvas id="ink" aria-hidden="true"></canvas>
+      <div class="hero-inner">
+        <div class="hero-text">
+          <p class="kicker">Extension for Owlbear Rodeo</p>
+          <h1>Your secrets,<br /><span class="spark">in invisible ink.</span></h1>
+          <p class="lead">
+            Stat blocks on your monsters, notes on your traps and your NPCs.
+            All on the map, all encrypted: your players see the map, never your notes.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="#install">Add it to your room</a>
+            <a class="button ghost" href="#sealed">See how it hides</a>
+          </div>
+          <p class="hint"><span class="on-mouse">Move over</span><span class="on-touch">Drag across</span> the map to see what only the GM sees.</p>
+        </div>
+        <figure class="lens" aria-label="The same map, seen by a player and by the GM">
+          <div class="lens-stage">
+            <img class="map" src="/guide/map.jpg" alt="A harbour village with docks, a market square and a bridge" />
+            <div class="tokens" aria-hidden="true">
+              <span class="token pc" style="--x: 36; --y: 51">K</span>
+              <span class="token pc" style="--x: 40.5; --y: 59">R</span>
+              <span class="token pc" style="--x: 33; --y: 61">W</span>
+              <span class="token npc" style="--x: 52; --y: 27">M</span>
+              <span class="token foe" style="--x: 86; --y: 58">G</span>
+            </div>
+            <div class="gm" aria-hidden="true">
+              <span class="badge" style="--x: 52; --y: 27"><img src="/badge.svg" alt="" /></span>
+              <span class="pin" style="--x: 19; --y: 47"><img src="/notes/piege.svg" alt="" /><b>Loose planks</b></span>
+              <span class="pin" style="--x: 35; --y: 84"><img src="/notes/objet.svg" alt="" /><b>Key in the well</b></span>
+              <span class="pin" style="--x: 69; --y: 71"><img src="/notes/mecanique.svg" alt="" /><b>Trapdoor to the caves</b></span>
+              <span class="pin" style="--x: 85; --y: 15"><img src="/notes/libre.svg" alt="" /><b>Ambush at nightfall</b></span>
+              <span class="whisper" style="--x: 52; --y: 27">Marta is the smuggler.</span>
+            </div>
+            <span class="ring" aria-hidden="true"></span>
+            <span class="tag player"><small>Seen by</small>Players</span>
+            <span class="tag gm-tag"><small>Seen by</small>GM</span>
+          </div>
+          <div class="lens-switch" role="group" aria-label="Point of view">
+            <button type="button" data-view="lens" aria-pressed="true">Lens</button>
+            <button type="button" data-view="player" aria-pressed="false">Player</button>
+            <button type="button" data-view="gm" aria-pressed="false">GM</button>
+          </div>
+        </figure>
+      </div>
+      <a class="scroll" href="#sealed" aria-label="Scroll down"></a>
+    </section>
+
+    <section id="sealed" class="band">
+      <div class="wrap">
+        <header class="chapter-head center">
+          <p class="kicker">Truly hidden</p>
+          <h2>Even developer tools see only ink blots.</h2>
+          <p class="sub">Owlbear Rodeo sends the whole scene to every player. Hidden Ink encrypts your notes in your browser first, with AES-GCM 256. Try it: this note is really encrypted, right now, with a key that exists only in this page.</p>
+        </header>
+        <div class="cipher">
+          <div class="cipher-card plain">
+            <p class="cipher-label"><span>1</span>You write</p>
+            <div class="ext ext-note ext-cipher" id="cipher-window"></div>
+          </div>
+          <div class="cipher-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div>
+          <div class="cipher-card sealed">
+            <p class="cipher-label"><span>2</span>A player's browser receives</p>
+            <pre class="code" id="cipher-out" aria-live="polite"></pre>
+            <div class="cipher-actions">
+              <button type="button" class="button small primary" id="decrypt">Read it with the GM's key</button>
+              <span class="cipher-note" id="cipher-note">Without the key: nothing to read.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="statblocks" class="chapter">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">I</p>
+          <h2>Stat blocks on your tokens</h2>
+          <p class="sub">Right-click a monster, <em>Add a stat block</em>, pick your game. The stat block opens in a window you can move, resize, or fold into a row of icons.</p>
+          <ul class="runes">
+            <li><strong>D&amp;D 5e:</strong> search the SRD with Open5e, paste an AideDD link, or write it by hand.</li>
+            <li><strong>Pathfinder 2e:</strong> paste a link from Archives of Nethys. Elite and weak versions come along.</li>
+            <li><strong>Daggerheart:</strong> paste an adversary or environment from the online SRD.</li>
+            <li><strong>Any other game:</strong> a free-form stat block, with your own properties and abilities.</li>
+            <li><em>Adapt</em> copies any stat block into a form, so you can make it your own.</li>
+          </ul>
+        </div>
+        <figure class="sheet-demo">
+          <div class="systems" role="tablist" aria-label="Game">
+            <button type="button" role="tab" aria-selected="true" data-system="dnd">D&amp;D 5e</button>
+            <button type="button" role="tab" aria-selected="false" data-system="pf2e">Pathfinder 2e</button>
+            <button type="button" role="tab" aria-selected="false" data-system="dh">Daggerheart</button>
+            <button type="button" role="tab" aria-selected="false" data-system="generic">Any game</button>
+          </div>
+          <div class="ext ext-sheet" id="sheet-window"></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="tokens" class="chapter reverse">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">II</p>
+          <h2>A secret on every token</h2>
+          <p class="sub">The innkeeper is a cultist, the paladin's sword is cursed. Write it right on the token, even a player's own: they will never know.</p>
+          <ul class="runes">
+            <li>Right-click any token, <em>Add a secret note</em>.</li>
+            <li>A small envelope marks the token, <strong>on the GM's screen only</strong>.</li>
+            <li>Markdown for lists, bold and links.</li>
+          </ul>
+        </div>
+        <figure class="token-demo" aria-hidden="true">
+          <div class="crop" style="--fx: 52%; --fy: 27%">
+            <span class="token npc big">M<img class="env" src="/badge.svg" alt="" /></span>
+          </div>
+          <div class="menu">
+            <p class="menu-row"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z" /><path d="M15 3v4h4" /><path d="M9 12h7M9 16h7" /></svg><span data-ext-text="menu.addFiche"></span></p>
+            <p class="menu-row on"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M3 7l9 7 9-7" /></svg><span data-ext-text="menu.addTokenNote"></span></p>
+          </div>
+          <div class="ext ext-note" id="token-note-window" inert></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="notes" class="chapter">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">III</p>
+          <h2>Notes pinned to the map</h2>
+          <p class="sub">Traps, hidden items, mechanisms: drop them where they are. Pick the <em>Map notes</em> tool, click the map, write.</p>
+          <ul class="runes">
+            <li>Four types, each with its icon: <strong>trap</strong>, <strong>hidden item</strong>, <strong>mechanism</strong>, <strong>free note</strong>.</li>
+            <li><em>Mark as done</em> once the players found it: the icon fades.</li>
+            <li>Titles on the map, for the GM only, and hidden in one click.</li>
+            <li>A list of the scene's notes, with search and filters.</li>
+          </ul>
+        </div>
+        <figure class="notes-demo">
+          <div class="ext ext-list" id="notes-list-window"></div>
+          <div class="ext ext-note" id="map-note-window"></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="key" class="chapter reverse amber">
+      <div class="wrap split">
+        <div class="text">
+          <p class="numeral">IV</p>
+          <h2>One key, kept by you</h2>
+          <p class="sub">Your key is created with your first note and stays in your browser. No account, no server: whoever has the key reads the notes.</p>
+          <ul class="runes">
+            <li><strong>Copy it</strong> and keep it somewhere safe, from the settings of the <em>Map notes</em> tool.</li>
+            <li>Import it on another computer, or give it to a <strong>co-GM</strong>.</li>
+            <li>Lost key, lost notes: nobody can open them, not even me.</li>
+          </ul>
+        </div>
+        <figure class="key-demo">
+          <div class="ext ext-settings" id="settings-window"></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="install" class="band install">
+      <div class="wrap center">
+        <p class="kicker">Ready in a minute</p>
+        <h2>Bring it to your table</h2>
+        <ol class="ritual">
+          <li><span>1</span><strong>Install the extension</strong><p>From the Owlbear Rodeo store, or with its address just below.</p></li>
+          <li><span>2</span><strong>Enable it in your room</strong><p>The GM does it once. Players have nothing to install.</p></li>
+          <li><span>3</span><strong>Write your first secret</strong><p>Right-click a token, then <em>Add a stat block</em> or <em>Add a secret note</em>.</p></li>
+        </ol>
+        <div class="install-bar">
+          <a class="button primary" href="#" data-link="store">Owlbear Rodeo store</a>
+          <span class="or">or</span>
+          <span class="copy-wrap">
+            <button class="manifest copy" type="button" data-copy="https://hidden-ink.pages.dev/manifest.json">
+              <small>Custom extension</small>
+              <code>https://hidden-ink.pages.dev/manifest.json</code>
+              <b>Copy</b>
+            </button>
+            <span class="copy-tip" role="status"></span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="chapter">
+      <div class="wrap">
+        <header class="chapter-head center">
+          <p class="kicker">Questions</p>
+          <h2>Before you ask</h2>
+        </header>
+        <div class="faq">
+          <details>
+            <summary>Do players need to install anything?</summary>
+            <p>No. Once the GM enables the extension in the room, it works. Players simply see nothing of it.</p>
+          </details>
+          <details>
+            <summary>Can a clever player read my notes?</summary>
+            <p>No. Their browser only receives encrypted data. Without your key, even developer tools show nothing readable. They can tell that a note exists somewhere on the map, but not what it says.</p>
+          </details>
+          <details>
+            <summary>What if I lose my key?</summary>
+            <p>Notes encrypted with it can no longer be read. That's why the settings ask you to copy it. If it's gone, <em>Reset the key</em> lets you start over in the room.</p>
+          </details>
+          <details>
+            <summary>How do I share notes with a co-GM?</summary>
+            <p>Copy your key from the settings and send it to them privately. Once they import it, you both read and write the same notes.</p>
+          </details>
+          <details>
+            <summary>Are linked stat blocks stored?</summary>
+            <p>No. Stat blocks from Open5e or from a link are read from their site when you open them. Only the reference is encrypted, so players can't tell which monster hides behind a token.</p>
+          </details>
+          <details>
+            <summary>Which languages are available?</summary>
+            <p>English and French. The interface follows your browser's language, and you can change it in the settings.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="support" class="band">
+      <div class="wrap">
+        <div class="support-card">
+          <div>
+            <p class="kicker">Keep the ink flowing</p>
+            <h2>Hidden Ink is free</h2>
+            <p class="sub">If it keeps your secrets safe, you can help it grow: new games, new note types, and time to fix what you report.</p>
+          </div>
+          <div class="actions">
+            <a class="button primary" href="#" data-link="patreon">Support on Patreon</a>
+            <a class="button ghost" href="https://github.com/misterjj/hidden-ink/issues" target="_blank" rel="noopener">Report a bug</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Hidden Ink by Jonathan Jorand · Free and open source (MIT) · Not affiliated with Owlbear Rodeo ·
+      <a href="https://github.com/misterjj/hidden-ink" target="_blank" rel="noopener">GitHub</a>
+      <p class="privacy">This site uses Cloudflare Web Analytics to count visits anonymously, without cookies. No personal data is collected.</p>
+      <p class="privacy">D&amp;D 5e goblin from the System Reference Document 5.1 by Wizards of the Coast LLC, under CC-BY-4.0.</p>
+    </footer>
+
+    <script type="module" src="/src/guide/guide.ts"></script>
+  </body>
+</html>

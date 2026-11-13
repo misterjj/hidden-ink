@@ -5,7 +5,7 @@ import { FicheError, loadFromLink, resolveFiche } from "./data";
 import { currentLanguage, t } from "./i18n";
 import { icon } from "./icons";
 import { escapeHtml } from "./manual";
-import { statblockHtml, statblockParts, windowHtml, type Part } from "./sheet";
+import { miniPanelHtml, miniToolsHtml, statblockHtml, statblockParts, windowHtml, type Part } from "./sheet";
 import { trackPointer } from "./drag";
 import { startFrame } from "./frame";
 import "./style.css";
@@ -147,7 +147,7 @@ function showPart(part: Part, button: HTMLElement) {
     .querySelectorAll("#mini-tools button.active")
     .forEach((other) => other.classList.remove("active"));
   button.classList.add("active");
-  panel.innerHTML = `<h2>${escapeHtml(part.label)}</h2>${part.html}`;
+  panel.innerHTML = miniPanelHtml(part);
   panel.hidden = false;
   panel.scrollTop = 0;
   const available = Math.max(
@@ -163,16 +163,8 @@ function showPart(part: Part, button: HTMLElement) {
 
 function renderTools(parts: Part[]) {
   const tools = document.querySelector<HTMLElement>("#mini-tools")!;
-  if (!parts.length) {
-    tools.innerHTML = `<span class="hint">${t("window.unavailable")}</span>`;
-    return;
-  }
-  tools.innerHTML = parts
-    .map(
-      (part, index) =>
-        `<button type="button" class="part" data-part="${index}" aria-label="${escapeHtml(part.label)}">${part.icon}</button>`,
-    )
-    .join("");
+  tools.innerHTML = miniToolsHtml(parts);
+  if (!parts.length) return;
   tools.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
     const part = parts[Number(button.dataset.part)];
     button.addEventListener("pointerenter", () => showPart(part, button));

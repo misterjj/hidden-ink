@@ -8,6 +8,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
+        guide: resolve("index.html"),
+        guideFr: resolve("fr/index.html"),
         background: resolve("background.html"),
         editor: resolve("editor.html"),
         statblock: resolve("statblock.html"),
